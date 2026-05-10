@@ -44,6 +44,18 @@ function escapeRegex(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function userSnapshot(user, member = null) {
+    if (!user) return null;
+    return {
+        id: user.id,
+        username: user.username || null,
+        global_name: user.globalName || null,
+        display_name: member?.displayName || user.globalName || user.username || user.id,
+        tag: user.tag || null,
+        bot: Boolean(user.bot)
+    };
+}
+
 function buttonCustomId(buttonId) {
     return `ticket_open_${buttonId}`;
 }
@@ -333,6 +345,92 @@ async function getTicketEvents(ticketId, guildId) {
         .toArray());
 }
 
+async function getTicketMessages(ticketId, guildId) {
+    await ensureDb();
+    return cleanDocs(await collection("ticket_messages")
+        .find({ ticket_id: numericId(ticketId), guild_id: guildId })
+        .sort({ created_at: 1 })
+        .toArray());
+}
+
+async function fetchAllChannelMessages(channel, maxMessages = 1000) {
+    const all = [];
+    let before;
+
+    while (all.length < maxMessages) {
+        const batch = await channel.messages.fetch({
+            limit: Math.min(100, maxMessages - all.length),
+            ...(before ? { before } : {})
+        });
+
+        if (batch.size === 0) break;
+        const sorted = [...batch.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+        all.push(...sorted);
+        before = sorted[0]?.id;
+        if (batch.size < 100) break;
+    }
+
+    return all.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+}
+
+async function archiveTicketConversation(channel, ticket, guildId) {
+    if (!channel?.messages?.fetch || !ticket?.id) return { count: 0, participants: [] };
+
+    const messages = await fetchAllChannelMessages(channel).catch(error => {
+        console.error(`No se pudo leer transcript del ticket ${ticket.id}:`, error);
+        return [];
+    });
+
+    const participantMap = new Map();
+    const docs = [];
+
+    for (const message of messages) {
+        const member = message.member || await channel.guild.members.fetch(message.author.id).catch(() => null);
+        const author = userSnapshot(message.author, member);
+        if (author) participantMap.set(author.id, author);
+
+        docs.push({
+            ticket_id: numericId(ticket.id),
+            guild_id: guildId,
+            channel_id: channel.id,
+            message_id: message.id,
+            author_id: message.author.id,
+            author,
+            content: message.content || "",
+            attachments: message.attachments.map(attachment => ({
+                id: attachment.id,
+                name: attachment.name,
+                url: attachment.url,
+                content_type: attachment.contentType || null,
+                size: attachment.size || null
+            })),
+            embeds_count: message.embeds.length,
+            created_at: message.createdAt,
+            edited_at: message.editedAt || null,
+            archived_at: new Date()
+        });
+    }
+
+    await collection("ticket_messages").deleteMany({ ticket_id: numericId(ticket.id), guild_id: guildId });
+    if (docs.length > 0) {
+        await collection("ticket_messages").insertMany(docs);
+    }
+
+    const participants = [...participantMap.values()];
+    await collection("tickets").updateOne(
+        { id: numericId(ticket.id), guild_id: guildId },
+        {
+            $set: {
+                transcript_message_count: docs.length,
+                transcript_participants: participants,
+                transcript_archived_at: new Date()
+            }
+        }
+    );
+
+    return { count: docs.length, participants };
+}
+
 async function searchTickets(guildId, filters = {}) {
     await ensureDb();
     const where = { guild_id: guildId };
@@ -368,6 +466,29 @@ async function searchTickets(guildId, filters = {}) {
             where.opened_at.$lte = toDate;
         }
     }
+
+    return cleanDocs(await collection("tickets")
+        .find(where)
+        .sort({ opened_at: -1 })
+        .limit(100)
+        .toArray());
+}
+
+async function searchTicketsByUserText(guildId, query) {
+    await ensureDb();
+    const clean = String(query || "").trim();
+    if (!clean) return [];
+    const pattern = { $regex: escapeRegex(clean), $options: "i" };
+    const where = {
+        guild_id: guildId,
+        $or: [
+            { user_id: clean },
+            { "user.display_name": pattern },
+            { "user.username": pattern },
+            { "user.global_name": pattern },
+            { "user.tag": pattern }
+        ]
+    };
 
     return cleanDocs(await collection("tickets")
         .find(where)
@@ -483,6 +604,7 @@ async function createTicket(interaction, buttonId, reason, targetUser = null) {
 
     const id = await nextSequence("tickets");
     const now = new Date();
+    const openerMember = targetUser ? await interaction.guild.members.fetch(opener.id).catch(() => null) : interaction.member;
     const ticket = {
         id,
         guild_id: interaction.guild.id,
@@ -492,14 +614,19 @@ async function createTicket(interaction, buttonId, reason, targetUser = null) {
         type_label: button.label,
         channel_id: channel.id,
         user_id: opener.id,
+        user: userSnapshot(opener, openerMember),
         claimed_by: null,
+        claimed_by_user: null,
         status: "open",
         reason,
         close_reason: null,
         closed_by: null,
+        closed_by_user: null,
         opened_at: now,
         claimed_at: null,
-        closed_at: null
+        closed_at: null,
+        transcript_message_count: 0,
+        transcript_participants: []
     };
 
     await collection("tickets").insertOne(ticket);
@@ -598,11 +725,17 @@ async function claimTicket(interaction, ticketId) {
     }
 
     await addEvent(ticket.id, interaction.guild.id, "claimed", interaction.user.id, { staffId: interaction.user.id });
+    const claimant = userSnapshot(interaction.user, interaction.member);
+    await collection("tickets").updateOne(
+        { id: ticket.id, guild_id: interaction.guild.id },
+        { $set: { claimed_by_user: claimant } }
+    );
 
     return {
         ticket: {
             ...ticket,
-            claimed_by: interaction.user.id
+            claimed_by: interaction.user.id,
+            claimed_by_user: claimant
         }
     };
 }
@@ -614,6 +747,9 @@ async function closeTicket(interaction, ticketId, closeReason) {
         return { denied: true };
     }
 
+    const transcript = await archiveTicketConversation(interaction.channel, ticket, interaction.guild.id);
+    const closer = userSnapshot(interaction.user, interaction.member);
+    const closedAt = new Date();
     const result = await collection("tickets").updateOne(
         { id: ticket.id, guild_id: interaction.guild.id, status: "open" },
         {
@@ -621,7 +757,8 @@ async function closeTicket(interaction, ticketId, closeReason) {
                 status: "closed",
                 close_reason: closeReason,
                 closed_by: interaction.user.id,
-                closed_at: new Date()
+                closed_by_user: closer,
+                closed_at: closedAt
             }
         }
     );
@@ -629,9 +766,23 @@ async function closeTicket(interaction, ticketId, closeReason) {
         throw new Error("Ticket abierto no encontrado.");
     }
 
-    await addEvent(ticket.id, interaction.guild.id, "closed", interaction.user.id, { closeReason });
+    await addEvent(ticket.id, interaction.guild.id, "closed", interaction.user.id, {
+        closeReason,
+        transcriptMessageCount: transcript.count
+    });
 
-    return { ticket };
+    return {
+        ticket: {
+            ...ticket,
+            status: "closed",
+            close_reason: closeReason,
+            closed_by: interaction.user.id,
+            closed_by_user: closer,
+            closed_at: closedAt,
+            transcript_message_count: transcript.count,
+            transcript_participants: transcript.participants
+        }
+    };
 }
 
 async function listTickets(guildId, status, limit = 10) {
@@ -693,6 +844,7 @@ module.exports = {
     getPanelWithButtons,
     getPanels,
     getTicketEvents,
+    getTicketMessages,
     getTicketByChannel,
     getTicketById,
     listTickets,
@@ -701,6 +853,7 @@ module.exports = {
     publishPanelForGuild,
     removeTicketAccess,
     searchTickets,
+    searchTicketsByUserText,
     ticketStats,
     updateButton,
     updatePanel

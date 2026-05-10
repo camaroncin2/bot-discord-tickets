@@ -123,6 +123,26 @@ function ticketTags(ticket) {
   return ["ticket"];
 }
 
+function displayUser(user, fallback = "-") {
+  return user?.display_name || user?.global_name || user?.username || fallback || "-";
+}
+
+function userSubline(user, fallback = "") {
+  return user?.tag || user?.username || user?.id || fallback || "";
+}
+
+function findKnownUser(id, detail) {
+  if (!id || !detail?.ticket) return null;
+  const ticket = detail.ticket;
+  const participants = Array.isArray(ticket.transcript_participants) ? ticket.transcript_participants : [];
+  return [ticket.user, ticket.claimed_by_user, ticket.closed_by_user, ...participants].find(user => user?.id === id) || null;
+}
+
+function eventActorLabel(event, detail) {
+  const user = findKnownUser(event.actor_id, detail);
+  return displayUser(user, event.actor_id || "-");
+}
+
 function csvCell(value) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
@@ -133,6 +153,15 @@ function Empty({ children }) {
 
 function Badge({ children, tone = "neutral" }) {
   return <span className={`badge ${tone}`}>{children}</span>;
+}
+
+function UserCell({ user, fallback }) {
+  return (
+    <span className="user-cell">
+      <strong>{displayUser(user, fallback)}</strong>
+      <small>{userSubline(user, fallback)}</small>
+    </span>
+  );
 }
 
 function Login({ onAuthed }) {
@@ -569,8 +598,8 @@ function TicketsTable({ tickets, onSelect }) {
                   <td>{ticket.type_label}</td>
                   <td><span className={`priority-badge priority-${priority}`}>{priorityLabel(priority)}</span></td>
                   <td><div className="tag-stack">{ticketTags(ticket).slice(0, 3).map(tag => <span className="tag-badge" key={tag}><Tag size={12} /> {tag}</span>)}</div></td>
-                  <td>{ticket.user_id}</td>
-                  <td>{ticket.claimed_by || "-"}</td>
+                  <td><UserCell user={ticket.user} fallback={ticket.user_id} /></td>
+                  <td>{ticket.claimed_by ? <UserCell user={ticket.claimed_by_user} fallback={ticket.claimed_by} /> : "-"}</td>
                   <td>{formatDate(ticket.opened_at)}</td>
                 </tr>
               );
@@ -583,8 +612,21 @@ function TicketsTable({ tickets, onSelect }) {
 }
 
 function TicketDetail({ detail, onClose }) {
-  const { ticket, events } = detail;
+  const { ticket, events, transcript = [] } = detail;
+  const [showTranscript, setShowTranscript] = useState(false);
   const priority = normalizePriority(ticket.priority);
+  const transcriptUsers = useMemo(() => {
+    const map = new Map();
+    const stored = Array.isArray(ticket.transcript_participants) ? ticket.transcript_participants : [];
+    for (const user of stored) {
+      if (user?.id) map.set(user.id, user);
+    }
+    for (const message of transcript) {
+      if (message.author?.id) map.set(message.author.id, message.author);
+    }
+    return [...map.values()];
+  }, [ticket.transcript_participants, transcript]);
+
   return (
     <aside className="detail-panel">
       <header>
@@ -596,15 +638,53 @@ function TicketDetail({ detail, onClose }) {
       </header>
       <p><strong>Tipo:</strong> {ticket.type_label || "-"}</p>
       <p><strong>Prioridad:</strong> <span className={`priority-badge priority-${priority}`}>{priorityLabel(priority)}</span></p>
-      <p><strong>Usuario:</strong> {ticket.user_id || "-"}</p>
-      <p><strong>Atiende:</strong> {ticket.claimed_by || "-"}</p>
+      <p><strong>Usuario:</strong> <UserCell user={ticket.user} fallback={ticket.user_id} /></p>
+      <p><strong>Atiende:</strong> {ticket.claimed_by ? <UserCell user={ticket.claimed_by_user} fallback={ticket.claimed_by} /> : "-"}</p>
+      <p><strong>Cerro:</strong> {ticket.closed_by ? <UserCell user={ticket.closed_by_user} fallback={ticket.closed_by} /> : "-"}</p>
       <p><strong>Motivo:</strong> {ticket.reason || "-"}</p>
       <p><strong>Cierre:</strong> {ticket.close_reason || "-"}</p>
+      {ticket.status === "closed" ? (
+        <section className="transcript-block">
+          <div className="detail-section-title">
+            <strong>Conversacion</strong>
+            {transcript.length ? <button className="secondary transcript-toggle" onClick={() => setShowTranscript(value => !value)}><MessageSquarePlus size={15} /> {showTranscript ? "Ocultar" : "Ver todo"}</button> : null}
+          </div>
+          {transcript.length ? (
+            <>
+              <div className="participants-list">
+                {transcriptUsers.map(user => <span className="participant-chip" key={user.id}>{displayUser(user, user.id)}<small>{userSubline(user)}</small></span>)}
+              </div>
+              {showTranscript ? <ConversationTranscript messages={transcript} /> : <p className="muted-note">{transcript.length} mensajes archivados. Usa "Ver todo" para revisar la conversacion completa.</p>}
+            </>
+          ) : <p className="muted-note">No hay conversacion archivada para este ticket. Los tickets cerrados antes de esta funcion no tienen transcript.</p>}
+        </section>
+      ) : null}
       <p><strong>Eventos:</strong></p>
       <ul className="event-list">
-        {events.length ? events.map(event => <li key={`${event.event_type}-${event.created_at}`}>{event.event_type} por {event.actor_id || "-"}<br /><small>{formatDate(event.created_at)}</small></li>) : <li>Sin eventos registrados</li>}
+        {events.length ? events.map(event => <li key={`${event.event_type}-${event.created_at}`}>{event.event_type} por {eventActorLabel(event, detail)}<br /><small>{formatDate(event.created_at)}</small></li>) : <li>Sin eventos registrados</li>}
       </ul>
     </aside>
+  );
+}
+
+function ConversationTranscript({ messages }) {
+  return (
+    <div className="conversation-log">
+      {messages.map(message => (
+        <article className="conversation-message" key={message.message_id}>
+          <div className="conversation-author">
+            <strong>{displayUser(message.author, message.author_id)}</strong>
+            <span>{formatDate(message.created_at)}</span>
+          </div>
+          <p className="conversation-content">{message.content || (message.attachments?.length ? "Mensaje con archivo adjunto" : "Mensaje sin texto visible")}</p>
+          {message.attachments?.length ? (
+            <div className="attachment-list">
+              {message.attachments.map(attachment => <a href={attachment.url} target="_blank" rel="noreferrer" key={attachment.id}>{attachment.name || "Archivo adjunto"}</a>)}
+            </div>
+          ) : null}
+        </article>
+      ))}
+    </div>
   );
 }
 
@@ -899,42 +979,64 @@ function Panels({ panels, onEdit, reloadPanels, setActivePanel }) {
 }
 
 function Profile() {
-  const [userId, setUserId] = useState("");
-  const [tickets, setTickets] = useState(null);
+  const [query, setQuery] = useState("");
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   async function search(event) {
     event.preventDefault();
-    if (!userId.trim()) return;
-    setTickets(await api(`/api/tickets?${new URLSearchParams({ userId: userId.trim() }).toString()}`));
+    if (!query.trim()) return;
+    setLoading(true);
+    try {
+      setResult(await api(`/api/profile-search?${new URLSearchParams({ query: query.trim() }).toString()}`));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <section className="view-stack">
-      <PageHero eyebrow="Perfiles" title="Perfil de usuario" copy="Busca un ID de Discord para revisar actividad, tickets abiertos y historial cerrado." />
+      <PageHero eyebrow="Perfiles" title="Perfil de usuario" copy="Busca por nombre, apodo o ID de Discord para revisar actividad, tickets abiertos y historial cerrado." />
       <section className="card profile-search">
-        <CardTitle icon={UserSearch} title="Buscar usuario" sub="Usa el ID de Discord registrado en los tickets." />
+        <CardTitle icon={UserSearch} title="Buscar usuario" sub="Acepta apodo del servidor, usuario global, username o ID." />
         <form className="profile-form" onSubmit={search}>
-          <input value={userId} onChange={event => setUserId(event.target.value)} placeholder="ID de usuario de Discord" />
-          <button type="submit"><Search size={16} /> Buscar</button>
+          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Ejemplo: camaroncin, Cretania o 123456789" />
+          <button type="submit" disabled={loading}><Search size={16} /> {loading ? "Buscando" : "Buscar"}</button>
         </form>
       </section>
-      {tickets ? <ProfileResult userId={userId} tickets={tickets} /> : null}
+      {result ? <ProfileResult query={query} result={result} /> : null}
     </section>
   );
 }
 
-function ProfileResult({ userId, tickets }) {
+function ProfileResult({ query, result }) {
+  const tickets = result.tickets || [];
+  const users = result.users || [];
   const open = tickets.filter(ticket => ticket.status === "open").length;
   const closed = tickets.filter(ticket => ticket.status === "closed").length;
   const latest = [...tickets].sort((a, b) => (toDate(b.opened_at)?.getTime() || 0) - (toDate(a.opened_at)?.getTime() || 0))[0];
+  const mainUser = users[0];
   return (
     <section className="profile-result">
       <div className="profile-grid">
-        <article className="profile-card"><div className="profile-avatar"><User size={26} /></div><h3>{userId}</h3><p>{latest ? `Ultima actividad ${timeAgo(latest.opened_at)}` : "Sin tickets registrados"}</p></article>
+        <article className="profile-card">
+          <div className="profile-avatar"><User size={26} /></div>
+          <h3>{displayUser(mainUser, query)}</h3>
+          <p>{mainUser ? userSubline(mainUser) : "Usuario no encontrado en cache de Discord"}</p>
+          <p>{latest ? `Ultima actividad ${timeAgo(latest.opened_at)}` : "Sin tickets registrados"}</p>
+        </article>
         <article className="profile-card"><span className="eyebrow">Total</span><strong>{tickets.length}</strong><p>tickets registrados</p></article>
         <article className="profile-card"><span className="eyebrow">Abiertos</span><strong>{open}</strong><p>requieren seguimiento</p></article>
         <article className="profile-card"><span className="eyebrow">Cerrados</span><strong>{closed}</strong><p>historial disponible</p></article>
       </div>
+      {users.length > 1 ? (
+        <article className="card matched-users">
+          <CardTitle icon={UserSearch} title="Coincidencias encontradas" sub="La tabla incluye tickets de todos estos usuarios." />
+          <div className="participants-list">
+            {users.map(user => <span className="participant-chip" key={user.id}>{displayUser(user, user.id)}<small>{userSubline(user)}</small></span>)}
+          </div>
+        </article>
+      ) : null}
       <TicketsTable tickets={tickets} onSelect={() => {}} />
     </section>
   );

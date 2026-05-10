@@ -541,6 +541,28 @@ th {
 td { color: var(--text); font-size: 14px; }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: var(--surface-muted); }
+.user-cell {
+  display: inline-grid;
+  gap: 2px;
+  min-width: 0;
+  vertical-align: middle;
+}
+.user-cell strong {
+  max-width: 190px;
+  overflow: hidden;
+  color: var(--text-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.user-cell small {
+  max-width: 190px;
+  overflow: hidden;
+  color: var(--subtle);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
 .badge, .priority-badge, .tag-badge {
   display: inline-flex;
   align-items: center;
@@ -577,8 +599,112 @@ html.dark .priority-high { background: rgba(249, 115, 22, .16); border-color: rg
 }
 .detail-panel h3 { margin: 0; color: var(--text-strong); font-size: 17px; }
 .detail-panel p, .detail-panel li { color: var(--muted); line-height: 1.45; }
+.detail-panel p .user-cell { margin-left: 4px; }
 .event-list { display: grid; gap: 9px; margin: 10px 0 0; padding: 0; list-style: none; }
 .event-list li { padding: 10px; background: var(--surface-muted); border: 1px solid var(--line); border-radius: var(--radius); }
+.transcript-block {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+  padding: 12px;
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.detail-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.detail-section-title strong { color: var(--text-strong); }
+.transcript-toggle { padding: 7px 10px; }
+.participants-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.participant-chip {
+  display: inline-grid;
+  gap: 1px;
+  max-width: 220px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text-strong);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 750;
+}
+.participant-chip small {
+  overflow: hidden;
+  color: var(--subtle);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 650;
+}
+.muted-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.conversation-log {
+  display: grid;
+  gap: 8px;
+  max-height: 440px;
+  overflow: auto;
+  padding-right: 4px;
+}
+.conversation-message {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.conversation-author {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.conversation-author strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.conversation-author span {
+  flex: 0 0 auto;
+  color: var(--subtle);
+  font-size: 11px;
+}
+.conversation-content {
+  margin: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.attachment-list a {
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 750;
+  text-decoration: none;
+}
 
 .panel-form, .preview, .buttons-editor { padding: 18px; }
 .panel-form { display: grid; gap: 13px; }
@@ -829,7 +955,7 @@ html.dark .priority-high { background: rgba(249, 115, 22, .16); border-color: rg
 .profile-form { display: grid; grid-template-columns: minmax(220px, 420px) auto; gap: 10px; padding: 0 16px 16px; }
 .profile-card { padding: 18px; }
 .profile-card h3 { margin: 0 0 5px; color: var(--text-strong); font-size: 16px; }
-.profile-card p { margin: 0; color: var(--muted); }
+.profile-card p { margin: 0 0 4px; color: var(--muted); }
 .profile-avatar {
   width: 54px;
   height: 54px;
@@ -841,6 +967,8 @@ html.dark .priority-high { background: rgba(249, 115, 22, .16); border-color: rg
   background: var(--accent-soft);
   border: 1px solid var(--line);
 }
+.matched-users { padding: 16px; }
+.matched-users .participants-list { margin-top: 12px; }
 
 .modal-backdrop {
   position: fixed;

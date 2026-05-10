@@ -46,7 +46,9 @@ async function initDb() {
             db.collection("tickets").createIndex({ guild_id: 1, channel_id: 1, status: 1 }),
             db.collection("tickets").createIndex({ guild_id: 1, status: 1, opened_at: -1 }),
             db.collection("ticket_events").createIndex({ id: 1 }, { unique: true }),
-            db.collection("ticket_events").createIndex({ ticket_id: 1, guild_id: 1, created_at: 1 })
+            db.collection("ticket_events").createIndex({ ticket_id: 1, guild_id: 1, created_at: 1 }),
+            db.collection("ticket_messages").createIndex({ ticket_id: 1, guild_id: 1, created_at: 1 }),
+            db.collection("ticket_messages").createIndex({ ticket_id: 1, guild_id: 1, author_id: 1 })
         ]);
 
         ready = true;
