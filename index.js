@@ -423,7 +423,7 @@ client.on("interactionCreate", async interaction => {
 client.once("clientReady", async () => {
     console.log(`Bot conectado como ${client.user.tag}`);
     await initDb().catch(error => {
-        console.error("No se pudo inicializar MySQL. Los tickets no funcionaran hasta configurar la base de datos:", error);
+        console.error("No se pudo inicializar MongoDB. Los tickets no funcionaran hasta configurar la base de datos:", error);
     });
     startWebServer(client);
 

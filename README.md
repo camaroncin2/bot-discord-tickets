@@ -1,11 +1,11 @@
 # Bot Discord Tickets
 
-Bot de Discord con formularios, sistema de tickets con MySQL/MariaDB y dashboard web local para configurar paneles visualmente.
+Bot de Discord con formularios, sistema de tickets con MongoDB Atlas y dashboard web local para configurar paneles visualmente.
 
 ## Requisitos
 
 - Node.js 20 o superior.
-- MySQL o MariaDB local.
+- MongoDB Atlas o una instancia compatible con MongoDB.
 - Una aplicacion de Discord con bot token y client ID.
 
 ## Configuracion
@@ -21,11 +21,8 @@ npm install
 ```env
 DISCORD_TOKEN=your_discord_bot_token
 CLIENT_ID=your_discord_application_id
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=change_me
-DB_NAME=discord_bot
+MONGODB_URI=mongodb+srv://cretaniaserver_db_user:change_me@cluster0.ynm95c2.mongodb.net/?appName=Cluster0
+MONGODB_DB_NAME=discord_bot
 WEB_PORT=3000
 WEB_PASSWORD=change_me
 SESSION_SECRET=change_me_to_a_long_random_text

@@ -6,7 +6,7 @@ const {
     EmbedBuilder,
     PermissionFlagsBits
 } = require("discord.js");
-const { initDb, query, transaction } = require("./db");
+const { collection, initDb, nextSequence } = require("./db");
 
 const BUTTON_STYLES = {
     azul: ButtonStyle.Primary,
@@ -23,6 +23,25 @@ function parseJsonArray(value) {
     } catch {
         return [];
     }
+}
+
+function numericId(value) {
+    const id = Number(value);
+    return Number.isFinite(id) ? id : value;
+}
+
+function cleanDoc(doc) {
+    if (!doc) return null;
+    const { _id, ...rest } = doc;
+    return rest;
+}
+
+function cleanDocs(docs) {
+    return docs.map(cleanDoc);
+}
+
+function escapeRegex(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function buttonCustomId(buttonId) {
@@ -101,50 +120,47 @@ async function ensureDb() {
 
 async function createPanel(guildId, channelId, title, description, defaultCategoryId = null) {
     await ensureDb();
-    const result = await query(
-        `INSERT INTO ticket_panels (guild_id, channel_id, default_category_id, title, description)
-         VALUES (:guildId, :channelId, :defaultCategoryId, :title, :description)`,
-        { guildId, channelId, defaultCategoryId, title, description }
-    );
-    return result.insertId;
+    const id = await nextSequence("ticket_panels");
+    const now = new Date();
+    await collection("ticket_panels").insertOne({
+        id,
+        guild_id: guildId,
+        channel_id: channelId,
+        message_id: null,
+        default_category_id: defaultCategoryId || null,
+        title,
+        description,
+        created_at: now,
+        updated_at: now
+    });
+    return id;
 }
 
 async function getPanel(panelId, guildId) {
     await ensureDb();
-    const rows = await query(
-        "SELECT * FROM ticket_panels WHERE id = :panelId AND guild_id = :guildId LIMIT 1",
-        { panelId, guildId }
-    );
-    return rows[0] || null;
+    return cleanDoc(await collection("ticket_panels").findOne({ id: numericId(panelId), guild_id: guildId }));
 }
 
 async function getLatestPanel(guildId) {
     await ensureDb();
-    const rows = await query(
-        "SELECT * FROM ticket_panels WHERE guild_id = :guildId ORDER BY id DESC LIMIT 1",
-        { guildId }
-    );
-    return rows[0] || null;
+    return cleanDoc(await collection("ticket_panels").find({ guild_id: guildId }).sort({ id: -1 }).limit(1).next());
 }
 
 async function getPanels(guildId, limit = 25) {
     await ensureDb();
-    return query(
-        `SELECT *
-         FROM ticket_panels
-         WHERE guild_id = :guildId
-         ORDER BY id DESC
-         LIMIT ${Number(limit)}`,
-        { guildId }
-    );
+    return cleanDocs(await collection("ticket_panels")
+        .find({ guild_id: guildId })
+        .sort({ id: -1 })
+        .limit(Number(limit))
+        .toArray());
 }
 
 async function getPanelButtons(panelId, guildId) {
     await ensureDb();
-    return query(
-        "SELECT * FROM ticket_buttons WHERE panel_id = :panelId AND guild_id = :guildId ORDER BY id ASC",
-        { panelId, guildId }
-    );
+    return cleanDocs(await collection("ticket_buttons")
+        .find({ panel_id: numericId(panelId), guild_id: guildId })
+        .sort({ id: 1 })
+        .toArray());
 }
 
 async function getPanelWithButtons(panelId, guildId) {
@@ -168,95 +184,82 @@ async function deletePanel(guild, panelId) {
         }
     }
 
-    await query(
-        "DELETE FROM ticket_panels WHERE id = :panelId AND guild_id = :guildId",
-        { panelId, guildId: guild.id }
-    );
+    await collection("ticket_panels").deleteOne({ id: panel.id, guild_id: guild.id });
+    await collection("ticket_buttons").deleteMany({ panel_id: panel.id, guild_id: guild.id });
 
     return panel;
 }
 
 async function updatePanel(guildId, panelId, data) {
     await ensureDb();
-    await query(
-        `UPDATE ticket_panels
-         SET channel_id = :channelId,
-             default_category_id = :defaultCategoryId,
-             title = :title,
-             description = :description
-         WHERE id = :panelId AND guild_id = :guildId`,
+    await collection("ticket_panels").updateOne(
+        { id: numericId(panelId), guild_id: guildId },
         {
-            guildId,
-            panelId,
-            channelId: data.channelId,
-            defaultCategoryId: data.defaultCategoryId || null,
-            title: data.title,
-            description: data.description
+            $set: {
+                channel_id: data.channelId,
+                default_category_id: data.defaultCategoryId || null,
+                title: data.title,
+                description: data.description,
+                updated_at: new Date()
+            }
         }
     );
 }
 
 async function getButton(buttonId, guildId) {
     await ensureDb();
-    const rows = await query(
-        `SELECT b.*, p.channel_id AS panel_channel_id, p.message_id AS panel_message_id
-         FROM ticket_buttons b
-         JOIN ticket_panels p ON p.id = b.panel_id
-         WHERE b.id = :buttonId AND b.guild_id = :guildId
-         LIMIT 1`,
-        { buttonId, guildId }
-    );
-    return rows[0] || null;
+    const button = cleanDoc(await collection("ticket_buttons").findOne({ id: numericId(buttonId), guild_id: guildId }));
+    if (!button) return null;
+
+    const panel = await getPanel(button.panel_id, guildId);
+    if (!panel) return null;
+
+    return {
+        ...button,
+        panel_channel_id: panel.channel_id,
+        panel_message_id: panel.message_id
+    };
 }
 
 async function updateButton(guildId, buttonId, data) {
     await ensureDb();
-    await query(
-        `UPDATE ticket_buttons
-         SET label = :label,
-             style = :style,
-             category_id = :categoryId,
-             staff_role_ids = :staffRoleIds,
-             close_role_ids = :closeRoleIds
-         WHERE id = :buttonId AND guild_id = :guildId`,
+    await collection("ticket_buttons").updateOne(
+        { id: numericId(buttonId), guild_id: guildId },
         {
-            guildId,
-            buttonId,
-            label: data.label,
-            style: data.style,
-            categoryId: data.categoryId,
-            staffRoleIds: JSON.stringify(data.staffRoleIds || []),
-            closeRoleIds: JSON.stringify(data.closeRoleIds || [])
+            $set: {
+                label: data.label,
+                style: data.style,
+                category_id: data.categoryId,
+                staff_role_ids: data.staffRoleIds || [],
+                close_role_ids: data.closeRoleIds || [],
+                updated_at: new Date()
+            }
         }
     );
 }
 
 async function deleteButton(guildId, buttonId) {
     await ensureDb();
-    await query(
-        "DELETE FROM ticket_buttons WHERE id = :buttonId AND guild_id = :guildId",
-        { buttonId, guildId }
-    );
+    await collection("ticket_buttons").deleteOne({ id: numericId(buttonId), guild_id: guildId });
 }
 
 async function addButton(guildId, panelId, label, style, categoryId, staffRoleIds, closeRoleIds) {
     await ensureDb();
-    const result = await query(
-        `INSERT INTO ticket_buttons
-            (panel_id, guild_id, label, style, category_id, staff_role_ids, close_role_ids)
-         VALUES
-            (:panelId, :guildId, :label, :style, :categoryId, :staffRoleIds, :closeRoleIds)`,
-        {
-            panelId,
-            guildId,
-            label,
-            style,
-            categoryId,
-            staffRoleIds: JSON.stringify(staffRoleIds),
-            closeRoleIds: JSON.stringify(closeRoleIds)
-        }
-    );
-    return result.insertId;
+    const id = await nextSequence("ticket_buttons");
+    const now = new Date();
+    await collection("ticket_buttons").insertOne({
+        id,
+        panel_id: numericId(panelId),
+        guild_id: guildId,
+        label,
+        style,
+        category_id: categoryId,
+        staff_role_ids: staffRoleIds || [],
+        close_role_ids: closeRoleIds || [],
+        created_at: now,
+        updated_at: now
+    });
+    return id;
 }
 
 async function publishPanel(interaction, panelId) {
@@ -281,9 +284,9 @@ async function publishPanel(interaction, panelId) {
         message = await channel.send(payload);
     }
 
-    await query(
-        "UPDATE ticket_panels SET message_id = :messageId WHERE id = :panelId AND guild_id = :guildId",
-        { messageId: message.id, panelId: panel.id, guildId: interaction.guild.id }
+    await collection("ticket_panels").updateOne(
+        { id: panel.id, guild_id: interaction.guild.id },
+        { $set: { message_id: message.id, updated_at: new Date() } }
     );
 
     return message;
@@ -314,9 +317,9 @@ async function publishPanelForGuild(client, guildId, panelId) {
         message = await channel.send(payload);
     }
 
-    await query(
-        "UPDATE ticket_panels SET message_id = :messageId WHERE id = :panelId AND guild_id = :guildId",
-        { messageId: message.id, panelId: panel.id, guildId }
+    await collection("ticket_panels").updateOne(
+        { id: panel.id, guild_id: guildId },
+        { $set: { message_id: message.id, updated_at: new Date() } }
     );
 
     return message;
@@ -324,82 +327,64 @@ async function publishPanelForGuild(client, guildId, panelId) {
 
 async function getTicketEvents(ticketId, guildId) {
     await ensureDb();
-    return query(
-        `SELECT *
-         FROM ticket_events
-         WHERE ticket_id = :ticketId AND guild_id = :guildId
-         ORDER BY created_at ASC`,
-        { ticketId, guildId }
-    );
+    return cleanDocs(await collection("ticket_events")
+        .find({ ticket_id: numericId(ticketId), guild_id: guildId })
+        .sort({ created_at: 1 })
+        .toArray());
 }
 
 async function searchTickets(guildId, filters = {}) {
     await ensureDb();
-    const where = ["guild_id = :guildId"];
-    const params = { guildId };
+    const where = { guild_id: guildId };
 
     if (filters.status && ["open", "closed"].includes(filters.status)) {
-        where.push("status = :status");
-        params.status = filters.status;
+        where.status = filters.status;
     }
     if (filters.type) {
-        where.push("type_label LIKE :type");
-        params.type = `%${filters.type}%`;
+        where.type_label = { $regex: escapeRegex(filters.type), $options: "i" };
     }
     if (filters.userId) {
-        where.push("user_id = :userId");
-        params.userId = filters.userId;
+        where.user_id = filters.userId;
     }
     if (filters.number) {
-        where.push("ticket_number = :number");
-        params.number = Number(filters.number);
+        const number = Number(filters.number);
+        if (Number.isFinite(number)) where.ticket_number = number;
     }
-    if (filters.from) {
-        where.push("opened_at >= :from");
-        params.from = filters.from;
-    }
-    if (filters.to) {
-        where.push("opened_at <= :to");
-        params.to = filters.to;
+    if (filters.from || filters.to) {
+        where.opened_at = {};
+        if (filters.from) where.opened_at.$gte = new Date(filters.from);
+        if (filters.to) {
+            const toDate = new Date(filters.to);
+            toDate.setHours(23, 59, 59, 999);
+            where.opened_at.$lte = toDate;
+        }
     }
 
-    return query(
-        `SELECT *
-         FROM tickets
-         WHERE ${where.join(" AND ")}
-         ORDER BY opened_at DESC
-         LIMIT 100`,
-        params
-    );
+    return cleanDocs(await collection("tickets")
+        .find(where)
+        .sort({ opened_at: -1 })
+        .limit(100)
+        .toArray());
 }
 
 async function ticketStats(guildId) {
     await ensureDb();
-    const rows = await query(
-        `SELECT
-            SUM(status = 'open') AS open_count,
-            SUM(status = 'closed') AS closed_count,
-            COUNT(*) AS total_count
-         FROM tickets
-         WHERE guild_id = :guildId`,
-        { guildId }
-    );
-    return rows[0] || { open_count: 0, closed_count: 0, total_count: 0 };
+    const tickets = collection("tickets");
+    const [openCount, closedCount, totalCount] = await Promise.all([
+        tickets.countDocuments({ guild_id: guildId, status: "open" }),
+        tickets.countDocuments({ guild_id: guildId, status: "closed" }),
+        tickets.countDocuments({ guild_id: guildId })
+    ]);
+
+    return {
+        open_count: openCount,
+        closed_count: closedCount,
+        total_count: totalCount
+    };
 }
 
-async function nextTicketNumber(guildId, connection) {
-    await connection.execute(
-        `INSERT INTO ticket_counters (guild_id, last_number)
-         VALUES (:guildId, 0)
-         ON DUPLICATE KEY UPDATE last_number = last_number`,
-        { guildId }
-    );
-    await connection.execute(
-        "UPDATE ticket_counters SET last_number = LAST_INSERT_ID(last_number + 1) WHERE guild_id = :guildId",
-        { guildId }
-    );
-    const [rows] = await connection.execute("SELECT LAST_INSERT_ID() AS ticket_number");
-    return rows[0].ticket_number;
+async function nextTicketNumber(guildId) {
+    return nextSequence(`ticket_number:${guildId}`);
 }
 
 function canUseRoles(member, roleIds) {
@@ -460,25 +445,25 @@ function buildTicketPermissionOverwrites(guild, userId, button) {
 
 async function createTicket(interaction, buttonId, reason, targetUser = null) {
     await ensureDb();
-    const button = await getButton(buttonId, interaction.guild.id);
+    const normalizedButtonId = numericId(buttonId);
+    const button = await getButton(normalizedButtonId, interaction.guild.id);
     if (!button) throw new Error("El boton de ticket no existe.");
 
     const opener = targetUser || interaction.user;
-    const duplicate = await query(
-        `SELECT id, ticket_number, channel_id
-         FROM tickets
-         WHERE guild_id = :guildId
-           AND user_id = :userId
-           AND button_id = :buttonId
-           AND status = 'open'
-         LIMIT 1`,
-        { guildId: interaction.guild.id, userId: opener.id, buttonId }
-    );
-    if (duplicate[0]) {
-        return { duplicate: duplicate[0] };
+    const duplicate = cleanDoc(await collection("tickets").findOne(
+        {
+            guild_id: interaction.guild.id,
+            user_id: opener.id,
+            button_id: normalizedButtonId,
+            status: "open"
+        },
+        { projection: { id: 1, ticket_number: 1, channel_id: 1 } }
+    ));
+    if (duplicate) {
+        return { duplicate };
     }
 
-    const ticketNumber = await transaction(async connection => nextTicketNumber(interaction.guild.id, connection));
+    const ticketNumber = await nextTicketNumber(interaction.guild.id);
     const channel = await interaction.guild.channels.create({
         name: `ticket-${ticketNumber}`,
         type: ChannelType.GuildText,
@@ -487,40 +472,33 @@ async function createTicket(interaction, buttonId, reason, targetUser = null) {
         reason: `Ticket ${ticketNumber} creado por ${interaction.user.tag}`
     });
 
-    const result = await query(
-        `INSERT INTO tickets
-            (guild_id, ticket_number, button_id, panel_id, type_label, channel_id, user_id, reason)
-         VALUES
-            (:guildId, :ticketNumber, :buttonId, :panelId, :typeLabel, :channelId, :userId, :reason)`,
-        {
-            guildId: interaction.guild.id,
-            ticketNumber,
-            buttonId,
-            panelId: button.panel_id,
-            typeLabel: button.label,
-            channelId: channel.id,
-            userId: opener.id,
-            reason
-        }
-    );
-
+    const id = await nextSequence("tickets");
+    const now = new Date();
     const ticket = {
-        id: result.insertId,
+        id,
         guild_id: interaction.guild.id,
         ticket_number: ticketNumber,
-        button_id: buttonId,
+        button_id: normalizedButtonId,
         panel_id: button.panel_id,
         type_label: button.label,
         channel_id: channel.id,
         user_id: opener.id,
+        claimed_by: null,
+        status: "open",
         reason,
-        claimed_by: null
+        close_reason: null,
+        closed_by: null,
+        opened_at: now,
+        claimed_at: null,
+        closed_at: null
     };
+
+    await collection("tickets").insertOne(ticket);
 
     await addEvent(ticket.id, interaction.guild.id, "created", interaction.user.id, {
         channelId: channel.id,
         userId: opener.id,
-        buttonId
+        buttonId: normalizedButtonId
     });
 
     await channel.send({
@@ -534,43 +512,51 @@ async function createTicket(interaction, buttonId, reason, targetUser = null) {
 
 async function addEvent(ticketId, guildId, eventType, actorId, details = {}) {
     await ensureDb();
-    await query(
-        `INSERT INTO ticket_events (ticket_id, guild_id, event_type, actor_id, details)
-         VALUES (:ticketId, :guildId, :eventType, :actorId, :details)`,
-        {
-            ticketId,
-            guildId,
-            eventType,
-            actorId,
-            details: JSON.stringify(details)
-        }
-    );
+    await collection("ticket_events").insertOne({
+        id: await nextSequence("ticket_events"),
+        ticket_id: numericId(ticketId),
+        guild_id: guildId,
+        event_type: eventType,
+        actor_id: actorId,
+        details,
+        created_at: new Date()
+    });
 }
 
 async function getTicketById(ticketId, guildId) {
     await ensureDb();
-    const rows = await query(
-        `SELECT t.*, b.staff_role_ids, b.close_role_ids
-         FROM tickets t
-         LEFT JOIN ticket_buttons b ON b.id = t.button_id
-         WHERE t.id = :ticketId AND t.guild_id = :guildId
-         LIMIT 1`,
-        { ticketId, guildId }
-    );
-    return rows[0] || null;
+    const ticket = cleanDoc(await collection("tickets").findOne({ id: numericId(ticketId), guild_id: guildId }));
+    if (!ticket) return null;
+
+    const button = ticket.button_id
+        ? cleanDoc(await collection("ticket_buttons").findOne({ id: ticket.button_id, guild_id: guildId }))
+        : null;
+
+    return {
+        ...ticket,
+        staff_role_ids: button?.staff_role_ids || [],
+        close_role_ids: button?.close_role_ids || []
+    };
 }
 
 async function getTicketByChannel(channelId, guildId) {
     await ensureDb();
-    const rows = await query(
-        `SELECT t.*, b.staff_role_ids, b.close_role_ids
-         FROM tickets t
-         LEFT JOIN ticket_buttons b ON b.id = t.button_id
-         WHERE t.channel_id = :channelId AND t.guild_id = :guildId AND t.status = 'open'
-         LIMIT 1`,
-        { channelId, guildId }
-    );
-    return rows[0] || null;
+    const ticket = cleanDoc(await collection("tickets").findOne({
+        channel_id: channelId,
+        guild_id: guildId,
+        status: "open"
+    }));
+    if (!ticket) return null;
+
+    const button = ticket.button_id
+        ? cleanDoc(await collection("ticket_buttons").findOne({ id: ticket.button_id, guild_id: guildId }))
+        : null;
+
+    return {
+        ...ticket,
+        staff_role_ids: button?.staff_role_ids || [],
+        close_role_ids: button?.close_role_ids || []
+    };
 }
 
 async function claimTicket(interaction, ticketId) {
@@ -583,16 +569,21 @@ async function claimTicket(interaction, ticketId) {
         return { alreadyClaimed: ticket };
     }
 
-    const result = await query(
-        `UPDATE tickets
-         SET claimed_by = :staffId, claimed_at = CURRENT_TIMESTAMP
-         WHERE id = :ticketId
-           AND guild_id = :guildId
-           AND claimed_by IS NULL
-           AND status = 'open'`,
-        { staffId: interaction.user.id, ticketId, guildId: interaction.guild.id }
+    const result = await collection("tickets").updateOne(
+        {
+            id: ticket.id,
+            guild_id: interaction.guild.id,
+            claimed_by: null,
+            status: "open"
+        },
+        {
+            $set: {
+                claimed_by: interaction.user.id,
+                claimed_at: new Date()
+            }
+        }
     );
-    if (result.affectedRows === 0) {
+    if (result.modifiedCount === 0) {
         const current = await getTicketById(ticketId, interaction.guild.id);
         return { alreadyClaimed: current };
     }
@@ -614,21 +605,18 @@ async function closeTicket(interaction, ticketId, closeReason) {
         return { denied: true };
     }
 
-    const result = await query(
-        `UPDATE tickets
-         SET status = 'closed',
-             close_reason = :closeReason,
-             closed_by = :closedBy,
-             closed_at = CURRENT_TIMESTAMP
-         WHERE id = :ticketId AND guild_id = :guildId AND status = 'open'`,
+    const result = await collection("tickets").updateOne(
+        { id: ticket.id, guild_id: interaction.guild.id, status: "open" },
         {
-            closeReason,
-            closedBy: interaction.user.id,
-            ticketId,
-            guildId: interaction.guild.id
+            $set: {
+                status: "closed",
+                close_reason: closeReason,
+                closed_by: interaction.user.id,
+                closed_at: new Date()
+            }
         }
     );
-    if (result.affectedRows === 0) {
+    if (result.modifiedCount === 0) {
         throw new Error("Ticket abierto no encontrado.");
     }
 
@@ -639,14 +627,12 @@ async function closeTicket(interaction, ticketId, closeReason) {
 
 async function listTickets(guildId, status, limit = 10) {
     await ensureDb();
-    return query(
-        `SELECT *
-         FROM tickets
-         WHERE guild_id = :guildId AND status = :status
-         ORDER BY ${status === "open" ? "opened_at" : "closed_at"} DESC
-         LIMIT ${Number(limit)}`,
-        { guildId, status }
-    );
+    const sortField = status === "open" ? "opened_at" : "closed_at";
+    return cleanDocs(await collection("tickets")
+        .find({ guild_id: guildId, status })
+        .sort({ [sortField]: -1 })
+        .limit(Number(limit))
+        .toArray());
 }
 
 async function addTicketAccess(interaction, target) {
