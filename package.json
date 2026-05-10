@@ -4,6 +4,9 @@
   "description": "Bot con formulario y sistema de aprobacion",
   "main": "index.js",
   "scripts": {
+    "build:web": "vite build --config web/vite.config.js",
+    "web:dev": "vite --config web/vite.config.js",
+    "prestart": "npm run build:web",
     "start": "node index.js"
   },
   "dependencies": {
@@ -11,6 +14,13 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
-    "mongodb": "^7.2.0"
+    "lucide-react": "^1.14.0",
+    "mongodb": "^7.2.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "vite": "^8.0.11"
   }
 }

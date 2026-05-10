@@ -111,6 +111,7 @@ function startWebServer(client) {
     const port = Number(process.env.WEB_PORT || 3000);
     const password = process.env.WEB_PASSWORD || "admin";
     const sessionSecret = process.env.SESSION_SECRET || "change-this-session-secret";
+    const frontendPath = path.join(__dirname, "dist");
 
     app.use(express.json({ limit: "1mb" }));
     app.use(session({
@@ -122,7 +123,7 @@ function startWebServer(client) {
             sameSite: "lax"
         }
     }));
-    app.use(express.static(__dirname));
+    app.use(express.static(frontendPath));
 
     app.post("/api/login", (req, res) => {
         if (req.body?.password !== password) {
@@ -288,6 +289,10 @@ function startWebServer(client) {
         if (!guild) return res.status(503).json({ error: "Servidor no disponible." });
         await deleteButton(guild.id, req.params.id);
         res.json({ ok: true });
+    });
+
+    app.get(/^(?!\/api).*/, (req, res) => {
+        res.sendFile(path.join(frontendPath, "index.html"));
     });
 
     app.listen(port, () => {
