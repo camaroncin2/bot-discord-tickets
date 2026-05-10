@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ChannelType, PermissionsBitField } = require("discord.js");
+const { SlashCommandBuilder, ChannelType, PermissionsBitField, MessageFlags } = require("discord.js");
 const { readGuildConfig, writeGuildConfig, ensureGuildConfig, hasConfigAccess } = require("../utils/guildConfig");
 const { upsertFormPanel } = require("../utils/formPanel");
 
@@ -28,7 +28,7 @@ module.exports = {
 
     async execute(interaction) {
         if (!hasConfigAccess(interaction, PermissionsBitField.Flags.ManageGuild)) {
-            await interaction.reply({ content: "No tienes permisos para configurar.", ephemeral: true });
+            await interaction.reply({ content: "No tienes permisos para configurar.", flags: MessageFlags.Ephemeral });
             return;
         }
 
@@ -47,7 +47,7 @@ module.exports = {
 
         await interaction.reply({
             content: `Canales configurados: solicitudes <#${requestChannel.id}>, moderacion <#${modChannel.id}>, estado <#${statusChannel.id}>.`,
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
     }
 };

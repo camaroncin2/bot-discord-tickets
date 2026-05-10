@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("discord.js");
 const { readGuildConfig, writeGuildConfig, ensureGuildConfig } = require("../utils/guildConfig");
 const { upsertFormPanel } = require("../utils/formPanel");
 
@@ -41,6 +41,6 @@ module.exports = {
             await upsertFormPanel(requestChannel, interaction.client.user.id, guildCfg);
         }
 
-        await interaction.reply({ content: "Formulario actualizado.", ephemeral: true });
+        await interaction.reply({ content: "Formulario actualizado.", flags: MessageFlags.Ephemeral });
     }
 };

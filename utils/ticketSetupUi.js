@@ -10,7 +10,8 @@ const {
     RoleSelectMenuBuilder,
     StringSelectMenuBuilder,
     TextInputBuilder,
-    TextInputStyle
+    TextInputStyle,
+    MessageFlags
 } = require("discord.js");
 const { hasConfigAccess } = require("./guildConfig");
 const {
@@ -166,7 +167,7 @@ async function findOrCreateCategory(guild, name) {
 async function requireSetupAccess(interaction) {
     if (hasConfigAccess(interaction, PermissionFlagsBits.ManageGuild)) return true;
 
-    const payload = { content: "No tienes permisos para configurar tickets.", ephemeral: true };
+    const payload = { content: "No tienes permisos para configurar tickets.", flags: MessageFlags.Ephemeral };
     if (interaction.replied || interaction.deferred) {
         await interaction.followUp(payload).catch(console.error);
     } else {
@@ -202,7 +203,7 @@ function homePayload(ephemeral = false) {
     );
 
     const payload = { embeds: [embed], components: [row] };
-    if (ephemeral) payload.ephemeral = true;
+    if (ephemeral) payload.flags = MessageFlags.Ephemeral;
     return payload;
 }
 
@@ -326,7 +327,7 @@ async function showDeletePanelSelect(interaction) {
 
     const panels = await getPanels(interaction.guild.id);
     if (panels.length === 0) {
-        await interaction.reply({ content: "No hay paneles de tickets para borrar.", ephemeral: true });
+        await interaction.reply({ content: "No hay paneles de tickets para borrar.", flags: MessageFlags.Ephemeral });
         return;
     }
 
@@ -344,7 +345,7 @@ async function showDeletePanelSelect(interaction) {
     await interaction.reply({
         content: "Selecciona el panel que quieres borrar. Si estaba publicado, tambien se eliminara el mensaje del panel.",
         components: [row],
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     });
 }
 
@@ -660,7 +661,7 @@ async function handleTicketSetupModal(interaction) {
 
     if (interaction.customId === "ticket_setup_panel_modal") {
         if (!session.panelChannelId) {
-            await interaction.reply({ content: "La sesion expiro. Abre de nuevo `/ticket asistente`.", ephemeral: true });
+            await interaction.reply({ content: "La sesion expiro. Abre de nuevo `/ticket asistente`.", flags: MessageFlags.Ephemeral });
             return true;
         }
 
@@ -671,7 +672,7 @@ async function handleTicketSetupModal(interaction) {
         await interaction.reply({
             content: `Panel creado con ID ${panelId}. Ahora usa "Agregar boton" para configurar los botones del panel.`,
             components: [homePayload().components[0]],
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
         return true;
     }
@@ -693,7 +694,7 @@ async function handleTicketSetupModal(interaction) {
         await interaction.reply({
             content: `Panel creado con ID ${panelId} en <#${channel.id}>. Categoria de tickets: ${category.name}. Ahora agrega un boton.`,
             components: [homePayload().components[0]],
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
         return true;
     }
@@ -703,7 +704,7 @@ async function handleTicketSetupModal(interaction) {
         const panels = await getPanels(interaction.guild.id, 1);
         const panel = panels[0];
         if (!panel) {
-            await interaction.reply({ content: "Primero crea un panel de tickets.", ephemeral: true });
+            await interaction.reply({ content: "Primero crea un panel de tickets.", flags: MessageFlags.Ephemeral });
             return true;
         }
 
@@ -714,17 +715,17 @@ async function handleTicketSetupModal(interaction) {
         const closeRoleIds = parseRoleIds(interaction.fields.getTextInputValue("close_roles"));
 
         if (!style) {
-            await interaction.reply({ content: "Color invalido. Usa: azul, gris, verde o rojo.", ephemeral: true });
+            await interaction.reply({ content: "Color invalido. Usa: azul, gris, verde o rojo.", flags: MessageFlags.Ephemeral });
             return true;
         }
         if (staffRoleIds.length === 0 || closeRoleIds.length === 0) {
-            await interaction.reply({ content: "Debes mencionar o pegar el ID de al menos un rol staff y un rol de cierre.", ephemeral: true });
+            await interaction.reply({ content: "Debes mencionar o pegar el ID de al menos un rol staff y un rol de cierre.", flags: MessageFlags.Ephemeral });
             return true;
         }
 
         const existingButtons = await getPanelButtons(panel.id, interaction.guild.id);
         if (existingButtons.length >= 25) {
-            await interaction.reply({ content: "Este panel ya tiene el maximo de 25 botones permitido por Discord.", ephemeral: true });
+            await interaction.reply({ content: "Este panel ya tiene el maximo de 25 botones permitido por Discord.", flags: MessageFlags.Ephemeral });
             return true;
         }
 
@@ -745,21 +746,21 @@ async function handleTicketSetupModal(interaction) {
         await interaction.reply({
             content: `Boton creado con ID ${buttonId} en el panel ${panel.id}. Puedes publicar el panel cuando termines.`,
             components: [homePayload().components[0]],
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
         return true;
     }
 
     if (interaction.customId === "ticket_setup_button_label_modal") {
         if (!session.panelId || !session.categoryId || !session.staffRoleIds?.length || !session.closeRoleIds?.length || !session.style) {
-            await interaction.reply({ content: "La sesion expiro. Abre de nuevo `/ticket asistente`.", ephemeral: true });
+            await interaction.reply({ content: "La sesion expiro. Abre de nuevo `/ticket asistente`.", flags: MessageFlags.Ephemeral });
             return true;
         }
 
         const existingButtons = await getPanelButtons(session.panelId, interaction.guild.id);
         if (existingButtons.length >= 25) {
             clearSession(interaction);
-            await interaction.reply({ content: "Este panel ya tiene el maximo de 25 botones permitido por Discord.", ephemeral: true });
+            await interaction.reply({ content: "Este panel ya tiene el maximo de 25 botones permitido por Discord.", flags: MessageFlags.Ephemeral });
             return true;
         }
 
@@ -777,7 +778,7 @@ async function handleTicketSetupModal(interaction) {
         await interaction.reply({
             content: `Boton creado con ID ${buttonId}. Puedes agregar otro boton o publicar el panel.`,
             components: [homePayload().components[0]],
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
         return true;
     }

@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("discord.js");
 const { readGuildConfig, writeGuildConfig, ensureGuildConfig, hasConfigAccess } = require("../utils/guildConfig");
 
 module.exports = {
@@ -23,7 +23,7 @@ module.exports = {
 
     async execute(interaction) {
         if (!hasConfigAccess(interaction, PermissionsBitField.Flags.ManageGuild)) {
-            await interaction.reply({ content: "No tienes permisos para gestionar roles permitidos.", ephemeral: true });
+            await interaction.reply({ content: "No tienes permisos para gestionar roles permitidos.", flags: MessageFlags.Ephemeral });
             return;
         }
 
@@ -38,7 +38,7 @@ module.exports = {
                 guildCfg.configRoles.push(role.id);
                 writeGuildConfig(cfgAll);
             }
-            await interaction.reply({ content: `Rol agregado: <@&${role.id}>`, ephemeral: true });
+            await interaction.reply({ content: `Rol agregado: <@&${role.id}>`, flags: MessageFlags.Ephemeral });
             return;
         }
 
@@ -46,11 +46,11 @@ module.exports = {
             const role = interaction.options.getRole("rol");
             guildCfg.configRoles = guildCfg.configRoles.filter(id => id !== role.id);
             writeGuildConfig(cfgAll);
-            await interaction.reply({ content: `Rol eliminado: <@&${role.id}>`, ephemeral: true });
+            await interaction.reply({ content: `Rol eliminado: <@&${role.id}>`, flags: MessageFlags.Ephemeral });
             return;
         }
 
         const list = guildCfg.configRoles.map(id => `<@&${id}>`).join(", ") || "sin roles";
-        await interaction.reply({ content: `Roles permitidos: ${list}`, ephemeral: true });
+        await interaction.reply({ content: `Roles permitidos: ${list}`, flags: MessageFlags.Ephemeral });
     }
 };

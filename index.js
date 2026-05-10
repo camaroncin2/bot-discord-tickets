@@ -11,7 +11,8 @@ const {
     PermissionsBitField,
     ModalBuilder,
     TextInputBuilder,
-    TextInputStyle
+    TextInputStyle,
+    MessageFlags
 } = require("discord.js");
 require("dotenv").config({ quiet: true });
 const fs = require("fs");
@@ -61,6 +62,7 @@ const client = new Client({
 client.commands = new Collection();
 const processedMessages = new Set();
 const pendingTicketCloses = new Map();
+const EPHEMERAL = MessageFlags.Ephemeral;
 
 const commands = [];
 const commandPath = path.join(__dirname, "comandos");
@@ -89,12 +91,35 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
     }
 })();
 
+function normalizeReplyOptions(payload = {}) {
+    const { ephemeral, ...normalized } = payload;
+    if (ephemeral) normalized.flags = EPHEMERAL;
+    return normalized;
+}
+
+function isUnknownInteraction(error) {
+    return error?.code === 10062 || error?.rawError?.code === 10062;
+}
+
 async function safeReply(interaction, payload) {
-    if (interaction.replied || interaction.deferred) {
-        return interaction.followUp(payload).catch(console.error);
+    const normalized = normalizeReplyOptions(payload);
+
+    if (interaction.deferred && !interaction.replied) {
+        const { flags, ...editable } = normalized;
+        return interaction.editReply(editable).catch(error => {
+            if (!isUnknownInteraction(error)) console.error(error);
+        });
     }
 
-    return interaction.reply(payload).catch(console.error);
+    if (interaction.replied) {
+        return interaction.followUp(normalized).catch(error => {
+            if (!isUnknownInteraction(error)) console.error(error);
+        });
+    }
+
+    return interaction.reply(normalized).catch(error => {
+        if (!isUnknownInteraction(error)) console.error(error);
+    });
 }
 
 function buildProcessedRow(userId) {
@@ -142,7 +167,7 @@ async function handleCommand(interaction) {
         : PermissionsBitField.Flags.ManageGuild;
 
     if (!hasConfigAccess(interaction, permission)) {
-        await interaction.reply({ content: "No tienes permisos para usar comandos.", ephemeral: true });
+        await interaction.reply({ content: "No tienes permisos para usar comandos.", flags: EPHEMERAL });
         return;
     }
 
@@ -152,7 +177,7 @@ async function handleCommand(interaction) {
         console.error(`Error ejecutando /${interaction.commandName}:`, error);
         await safeReply(interaction, {
             content: "Ocurrio un error al ejecutar el comando.",
-            ephemeral: true
+            flags: EPHEMERAL
         });
     }
 }
@@ -161,15 +186,16 @@ async function handleModal(interaction) {
     if (await handleTicketSetupModal(interaction)) return;
 
     if (interaction.customId.startsWith("ticket_open_modal_")) {
+        await interaction.deferReply({ flags: EPHEMERAL });
         const buttonId = Number(interaction.customId.replace("ticket_open_modal_", ""));
         const reason = interaction.fields.getTextInputValue("ticket_reason");
         const result = await createTicket(interaction, buttonId, reason);
         if (result.duplicate) {
-            await interaction.reply({ content: `Ya tienes un ticket abierto de este tipo: <#${result.duplicate.channel_id}>`, ephemeral: true });
+            await interaction.editReply({ content: `Ya tienes un ticket abierto de este tipo: <#${result.duplicate.channel_id}>` });
             return;
         }
 
-        await interaction.reply({ content: `Ticket creado: <#${result.channel.id}>`, ephemeral: true });
+        await interaction.editReply({ content: `Ticket creado: <#${result.channel.id}>` });
         return;
     }
 
@@ -190,7 +216,7 @@ async function handleModal(interaction) {
         await interaction.reply({
             content: "Confirma el cierre del ticket. Esta accion marcara el ticket como cerrado y eliminara el canal.",
             components: [row],
-            ephemeral: true
+            flags: EPHEMERAL
         });
         return;
     }
@@ -201,13 +227,13 @@ async function handleModal(interaction) {
     const cfg = getGuildConfig(interaction.guild.id);
     const modId = cfg.modChannel;
     if (!modId) {
-        await interaction.reply({ content: "No hay canal de moderacion configurado. Usa /setup.", ephemeral: true });
+        await interaction.reply({ content: "No hay canal de moderacion configurado. Usa /setup.", flags: EPHEMERAL });
         return;
     }
 
     const channel = interaction.guild.channels.cache.get(modId);
     if (!channel) {
-        await interaction.reply({ content: "El canal de moderacion configurado no existe.", ephemeral: true });
+        await interaction.reply({ content: "El canal de moderacion configurado no existe.", flags: EPHEMERAL });
         return;
     }
 
@@ -221,42 +247,42 @@ async function handleModal(interaction) {
     );
 
     await channel.send({ embeds: [embed], components: [row] });
-    await interaction.reply({ content: "Formulario enviado al staff.", ephemeral: true });
+    await interaction.reply({ content: "Formulario enviado al staff.", flags: EPHEMERAL });
 }
 
 async function handleAccept(interaction, userId) {
     if (!hasConfigAccess(interaction, PermissionsBitField.Flags.ManageRoles)) {
-        await interaction.reply({ content: "No tienes permisos para moderar.", ephemeral: true });
+        await interaction.reply({ content: "No tienes permisos para moderar.", flags: EPHEMERAL });
         return;
     }
 
     const cfg = getGuildConfig(interaction.guild.id);
     const approvedId = cfg.approvedRole;
     if (!approvedId) {
-        await interaction.reply({ content: "No hay rol aprobado configurado. Usa /setrol.", ephemeral: true });
+        await interaction.reply({ content: "No hay rol aprobado configurado. Usa /setrol.", flags: EPHEMERAL });
         return;
     }
 
     const role = interaction.guild.roles.cache.get(approvedId);
     const member = await interaction.guild.members.fetch(userId).catch(() => null);
     if (!member || !role) {
-        await interaction.reply({ content: "No se pudo agregar el rol configurado.", ephemeral: true });
+        await interaction.reply({ content: "No se pudo agregar el rol configurado.", flags: EPHEMERAL });
         return;
     }
 
     const botMember = interaction.guild.members.me;
     if (!botMember || !botMember.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
-        await interaction.reply({ content: "El bot no tiene permiso para gestionar roles.", ephemeral: true });
+        await interaction.reply({ content: "El bot no tiene permiso para gestionar roles.", flags: EPHEMERAL });
         return;
     }
 
     if (botMember.roles.highest.comparePositionTo(role) <= 0) {
-        await interaction.reply({ content: "El rol aprobado esta por encima del rol del bot.", ephemeral: true });
+        await interaction.reply({ content: "El rol aprobado esta por encima del rol del bot.", flags: EPHEMERAL });
         return;
     }
 
     if (botMember.roles.highest.comparePositionTo(member.roles.highest) <= 0) {
-        await interaction.reply({ content: "No se puede modificar roles de este usuario por jerarquia.", ephemeral: true });
+        await interaction.reply({ content: "No se puede modificar roles de este usuario por jerarquia.", flags: EPHEMERAL });
         return;
     }
 
@@ -264,24 +290,24 @@ async function handleAccept(interaction, userId) {
         await member.roles.add(role);
     } catch (error) {
         console.error(`No se pudo agregar el rol ${role.id} a ${member.id}:`, error);
-        await interaction.reply({ content: "No se pudo agregar el rol. Verifica permisos y jerarquia.", ephemeral: true });
+        await interaction.reply({ content: "No se pudo agregar el rol. Verifica permisos y jerarquia.", flags: EPHEMERAL });
         return;
     }
 
     processedMessages.add(interaction.message.id);
-    await interaction.reply({ content: `Solicitud aceptada. Rol agregado a <@${userId}>.`, ephemeral: false });
+    await interaction.reply({ content: `Solicitud aceptada. Rol agregado a <@${userId}>.` });
     await interaction.message.edit({ components: [buildProcessedRow(userId)] }).catch(console.error);
     await sendStatusMessage(interaction.guild, userId, true);
 }
 
 async function handleDeny(interaction, userId) {
     if (!hasConfigAccess(interaction, PermissionsBitField.Flags.ManageRoles)) {
-        await interaction.reply({ content: "No tienes permisos para moderar.", ephemeral: true });
+        await interaction.reply({ content: "No tienes permisos para moderar.", flags: EPHEMERAL });
         return;
     }
 
     processedMessages.add(interaction.message.id);
-    await interaction.reply({ content: `Solicitud denegada para <@${userId}> por ${interaction.user.tag}.`, ephemeral: false });
+    await interaction.reply({ content: `Solicitud denegada para <@${userId}> por ${interaction.user.tag}.` });
     await interaction.message.edit({ components: [buildProcessedRow(userId)] }).catch(console.error);
     await sendStatusMessage(interaction.guild, userId, false);
 }
@@ -316,15 +342,15 @@ async function handleButton(interaction) {
         const ticketId = Number(interaction.customId.replace("ticket_claim_", ""));
         const result = await claimTicket(interaction, ticketId);
         if (result.denied) {
-            await interaction.reply({ content: "No tienes permisos para atender este ticket.", ephemeral: true });
+            await interaction.reply({ content: "No tienes permisos para atender este ticket.", flags: EPHEMERAL });
             return;
         }
         if (result.alreadyClaimed) {
-            await interaction.reply({ content: `Este ticket ya esta siendo atendido por <@${result.alreadyClaimed.claimed_by}>.`, ephemeral: true });
+            await interaction.reply({ content: `Este ticket ya esta siendo atendido por <@${result.alreadyClaimed.claimed_by}>.`, flags: EPHEMERAL });
             return;
         }
 
-        await interaction.reply({ content: `Ticket atendido por <@${interaction.user.id}>.`, ephemeral: false });
+        await interaction.reply({ content: `Ticket atendido por <@${interaction.user.id}>.` });
         await interaction.message.edit({
             embeds: [buildTicketEmbed(result.ticket)],
             components: [buildTicketControls(result.ticket)]
@@ -337,13 +363,13 @@ async function handleButton(interaction) {
         const key = `${ticketId}:${interaction.user.id}`;
         const closeReason = pendingTicketCloses.get(key);
         if (!closeReason) {
-            await interaction.reply({ content: "La confirmacion de cierre expiro. Usa /close o el boton Cerrar otra vez.", ephemeral: true });
+            await interaction.reply({ content: "La confirmacion de cierre expiro. Usa /close o el boton Cerrar otra vez.", flags: EPHEMERAL });
             return;
         }
 
         const result = await closeTicket(interaction, ticketId, closeReason);
         if (result.denied) {
-            await interaction.reply({ content: "No tienes permisos para cerrar este ticket.", ephemeral: true });
+            await interaction.reply({ content: "No tienes permisos para cerrar este ticket.", flags: EPHEMERAL });
             return;
         }
 
@@ -376,7 +402,7 @@ async function handleButton(interaction) {
     if (!match) return;
 
     if (processedMessages.has(interaction.message.id)) {
-        await interaction.reply({ content: "Esta solicitud ya fue procesada.", ephemeral: true });
+        await interaction.reply({ content: "Esta solicitud ya fue procesada.", flags: EPHEMERAL });
         return;
     }
 
@@ -414,7 +440,7 @@ client.on("interactionCreate", async interaction => {
         if (interaction.isRepliable()) {
             await safeReply(interaction, {
                 content: "Ocurrio un error inesperado.",
-                ephemeral: true
+                flags: EPHEMERAL
             });
         }
     }

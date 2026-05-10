@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("discord.js");
 const { readGuildConfig, writeGuildConfig, ensureGuildConfig, hasConfigAccess } = require("../utils/guildConfig");
 
 module.exports = {
@@ -14,7 +14,7 @@ module.exports = {
 
     async execute(interaction) {
         if (!hasConfigAccess(interaction, PermissionsBitField.Flags.ManageRoles)) {
-            await interaction.reply({ content: "No tienes permisos para configurar roles.", ephemeral: true });
+            await interaction.reply({ content: "No tienes permisos para configurar roles.", flags: MessageFlags.Ephemeral });
             return;
         }
 
@@ -24,6 +24,6 @@ module.exports = {
         guildCfg.approvedRole = role.id;
         writeGuildConfig(cfgAll);
 
-        await interaction.reply({ content: `Rol aprobado configurado: <@&${role.id}>`, ephemeral: true });
+        await interaction.reply({ content: `Rol aprobado configurado: <@&${role.id}>`, flags: MessageFlags.Ephemeral });
     }
 };

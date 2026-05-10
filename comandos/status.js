@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require("discord.js");
 const { getGuildConfig } = require("../utils/guildConfig");
 
 module.exports = {
@@ -27,6 +27,6 @@ module.exports = {
                 { name: "Roles Config", value: configRoles, inline: false }
             );
 
-        await interaction.reply({ embeds: [embed], ephemeral: true });
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }
 };
