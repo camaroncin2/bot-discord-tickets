@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tickets Command Center</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main id="loginView" class="login-shell hidden">
+    <form id="loginForm" class="login-card">
+      <span class="product-mark">Ticket Ops</span>
+      <h1>Centro de control</h1>
+      <p>Accede al panel local para revisar registros y configurar paneles de tickets.</p>
+      <label>Clave de acceso
+        <input id="passwordInput" type="password" placeholder="Ingresa la clave local" autocomplete="current-password" required>
+      </label>
+      <button type="submit">Entrar al dashboard</button>
+      <span id="loginError" class="error"></span>
+    </form>
+  </main>
+
+  <main id="appView" class="app hidden">
+    <header class="app-header">
+      <section class="brand-block">
+        <div class="brand-icon">T</div>
+        <div>
+          <span class="eyebrow">Command Center</span>
+          <h1>Tickets</h1>
+        </div>
+      </section>
+
+      <nav class="nav-tabs" aria-label="Navegacion principal">
+        <button class="nav-btn active" data-view="dashboard">Registros</button>
+        <button class="nav-btn" data-view="editor">Editor visual</button>
+        <button class="nav-btn" data-view="panels">Paneles</button>
+      </nav>
+
+      <section class="account-block">
+        <div class="server-pill">
+          <span>Servidor</span>
+          <strong id="guildName">Cargando</strong>
+        </div>
+        <button id="logoutBtn" class="ghost">Salir</button>
+      </section>
+    </header>
+
+    <section class="content">
+      <section id="dashboardView" class="view">
+        <header class="page-hero">
+          <div>
+            <span class="eyebrow">Operaciones</span>
+            <h2>Registros de tickets</h2>
+            <p>Monitorea actividad, filtra historial y abre detalles operativos sin salir del dashboard.</p>
+          </div>
+          <div class="status-strip">
+            <span class="status-dot"></span>
+            <span>Bot y base local activos</span>
+          </div>
+        </header>
+
+        <div class="stats">
+          <article>
+            <span>Tickets abiertos</span>
+            <strong id="openCount">0</strong>
+            <small>requieren seguimiento</small>
+          </article>
+          <article>
+            <span>Tickets cerrados</span>
+            <strong id="closedCount">0</strong>
+            <small>historial disponible</small>
+          </article>
+          <article>
+            <span>Total registrado</span>
+            <strong id="totalCount">0</strong>
+            <small>desde MySQL local</small>
+          </article>
+        </div>
+
+        <form id="ticketFilters" class="filters">
+          <select name="status">
+            <option value="">Todos los estados</option>
+            <option value="open">Abiertos</option>
+            <option value="closed">Cerrados</option>
+          </select>
+          <input name="type" placeholder="Tipo de ticket">
+          <input name="userId" placeholder="ID de usuario">
+          <input name="number" placeholder="Numero">
+          <input name="from" type="date">
+          <input name="to" type="date">
+          <button type="submit">Aplicar filtros</button>
+        </form>
+
+        <div class="records-grid">
+          <div class="table-card">
+            <div class="card-heading">
+              <h3>Actividad reciente</h3>
+              <span>Click en una fila para ver detalle</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Estado</th>
+                    <th>Tipo</th>
+                    <th>Usuario</th>
+                    <th>Atiende</th>
+                    <th>Abierto</th>
+                  </tr>
+                </thead>
+                <tbody id="ticketsTable"></tbody>
+              </table>
+            </div>
+          </div>
+          <section id="ticketDetail" class="detail-panel hidden"></section>
+        </div>
+      </section>
+
+      <section id="editorView" class="view hidden">
+        <header class="page-hero">
+          <div>
+            <span class="eyebrow">Constructor</span>
+            <h2>Editor visual de paneles</h2>
+            <p>Diseña el mensaje, configura botones y publica el panel directamente en Discord.</p>
+          </div>
+          <button id="newPanelBtn">Nuevo panel</button>
+        </header>
+
+        <div class="editor-grid">
+          <form id="panelForm" class="panel-form">
+            <div class="form-header">
+              <span class="step-number">01</span>
+              <div>
+                <h3>Contenido del panel</h3>
+                <p>Define el mensaje que verán los usuarios antes de abrir un ticket.</p>
+              </div>
+            </div>
+            <input type="hidden" name="panelId">
+            <label>Titulo del panel<input name="title" required maxlength="256"></label>
+            <label>Descripcion<textarea name="description" required maxlength="2000"></textarea></label>
+            <div class="form-split">
+              <label>Canal del panel
+                <select name="channelId"></select>
+              </label>
+              <label>Crear canal si no existe<input name="channelName" placeholder="abrir-ticket"></label>
+            </div>
+            <div class="form-split">
+              <label>Categoria por defecto
+                <select name="defaultCategoryId"></select>
+              </label>
+              <label>Crear categoria si no existe<input name="defaultCategoryName" placeholder="tickets"></label>
+            </div>
+            <div class="form-actions">
+              <button type="submit">Guardar panel</button>
+              <button type="button" id="publishPanelBtn" class="secondary">Publicar en Discord</button>
+            </div>
+          </form>
+
+          <section class="preview">
+            <div class="form-header">
+              <span class="step-number">Vista</span>
+              <div>
+                <h3>Previsualizacion</h3>
+                <p>Aproximacion visual del embed y sus botones.</p>
+              </div>
+            </div>
+            <div class="discord-preview">
+              <div class="message-row">
+                <div class="bot-avatar">B</div>
+                <div class="message-body">
+                  <div class="message-meta">bot request <span>APP</span></div>
+                  <div class="embed">
+                    <h4 id="previewTitle">Titulo del panel</h4>
+                    <p id="previewDescription">Descripcion del panel</p>
+                  </div>
+                  <div id="previewButtons" class="button-preview"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section class="buttons-editor">
+          <div class="section-title">
+            <div>
+              <span class="step-number">02</span>
+              <h3>Botones del panel</h3>
+            </div>
+            <button id="addButtonBtn" type="button">Agregar boton</button>
+          </div>
+          <div id="buttonsList" class="button-list"></div>
+          <form id="buttonForm" class="button-form hidden">
+            <input type="hidden" name="buttonId">
+            <label>Texto<input name="label" maxlength="80" required></label>
+            <label>Color
+              <select name="style">
+                <option value="azul">Azul</option>
+                <option value="gris">Gris</option>
+                <option value="verde">Verde</option>
+                <option value="rojo">Rojo</option>
+              </select>
+            </label>
+            <label>Categoria
+              <select name="categoryId"></select>
+            </label>
+            <label>Crear categoria si no existe<input name="categoryName" placeholder="tickets"></label>
+            <label>Roles staff<select name="staffRoleIds" multiple></select></label>
+            <label>Roles cierre<select name="closeRoleIds" multiple></select></label>
+            <div class="form-actions">
+              <button type="submit">Guardar boton</button>
+              <button type="button" id="cancelButtonEdit" class="secondary">Cancelar</button>
+            </div>
+          </form>
+        </section>
+      </section>
+
+      <section id="panelsView" class="view hidden">
+        <header class="page-hero">
+          <div>
+            <span class="eyebrow">Inventario</span>
+            <h2>Paneles configurados</h2>
+            <p>Revisa estado de publicacion, edita paneles existentes o elimina configuraciones obsoletas.</p>
+          </div>
+        </header>
+        <div id="panelsList" class="panel-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
