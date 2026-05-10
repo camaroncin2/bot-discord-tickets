@@ -42,9 +42,19 @@
           <button class="nav-btn active" data-view="dashboard"><i data-lucide="layout-dashboard"></i> Registros</button>
           <button class="nav-btn" data-view="editor"><i data-lucide="pen-tool"></i> Editor visual</button>
           <button class="nav-btn" data-view="panels"><i data-lucide="layers"></i> Paneles</button>
+          <button class="nav-btn" data-view="profile"><i data-lucide="user"></i> Perfiles</button>
         </nav>
 
         <section class="account-block">
+          <button id="responsesBtn" class="secondary compact-action" title="Respuestas rapidas"><i data-lucide="message-square-plus"></i> <span>Respuestas</span></button>
+          <div class="popover-anchor">
+            <button id="notificationsBtn" class="ghost square-action" title="Notificaciones">
+              <i data-lucide="bell"></i>
+              <span id="notificationBadge" class="notification-badge hidden">0</span>
+            </button>
+            <section id="notificationsPanel" class="notifications-popover hidden" aria-label="Notificaciones"></section>
+          </div>
+          <button id="themeToggleBtn" class="ghost square-action" title="Cambiar tema"><i data-lucide="moon"></i></button>
           <div class="server-pill">
             <i data-lucide="server"></i>
             <div>
@@ -65,9 +75,12 @@
             <h2>Registros de tickets</h2>
             <p>Monitorea actividad, filtra historial y abre detalles operativos sin salir del dashboard.</p>
           </div>
-          <div class="status-strip">
-            <span class="status-dot"></span>
-            <span>Bot y base local activos</span>
+          <div class="hero-actions">
+            <button id="exportCsvBtn" class="secondary"><i data-lucide="download"></i> Exportar CSV</button>
+            <div class="status-strip">
+              <span class="status-dot"></span>
+              <span>Bot y MongoDB activos</span>
+            </div>
           </div>
         </header>
 
@@ -96,21 +109,75 @@
             <strong id="totalCount">0</strong>
             <small>desde MongoDB Atlas</small>
           </article>
+          <article>
+            <div class="stat-top">
+              <span>Tiempo promedio</span>
+              <i data-lucide="clock" class="stat-icon blue"></i>
+            </div>
+            <strong id="avgTime">0m</strong>
+            <small>duracion al cerrar</small>
+          </article>
         </div>
 
-        <form id="ticketFilters" class="filters">
-          <select name="status" aria-label="Estado">
-            <option value="">Todos</option>
-            <option value="open">Abiertos</option>
-            <option value="closed">Cerrados</option>
-          </select>
-          <input name="type" placeholder="Tipo de ticket">
-          <input name="userId" placeholder="ID de usuario">
-          <input name="number" placeholder="Numero">
-          <input name="from" type="date" aria-label="Desde">
-          <input name="to" type="date" aria-label="Hasta">
-          <button type="submit"><i data-lucide="search"></i> Filtrar</button>
-        </form>
+        <section class="analytics-grid">
+          <article class="chart-card">
+            <div class="card-heading compact">
+              <div>
+                <h3><i data-lucide="trending-up"></i> Actividad semanal</h3>
+                <span>Tickets abiertos y cerrados por dia</span>
+              </div>
+            </div>
+            <div id="weeklyChart" class="bar-chart"></div>
+          </article>
+          <article class="chart-card">
+            <div class="card-heading compact">
+              <div>
+                <h3><i data-lucide="activity"></i> Distribucion</h3>
+                <span>Estado actual de tickets</span>
+              </div>
+            </div>
+            <div class="donut-wrap">
+              <div id="ticketDonut" class="donut"><span id="donutTotal">0</span></div>
+              <div id="donutLegend" class="donut-legend"></div>
+            </div>
+          </article>
+        </section>
+
+        <section class="filter-card">
+          <div class="card-heading compact">
+            <div>
+              <h3><i data-lucide="search"></i> Busqueda avanzada</h3>
+              <span>Combina filtros para ubicar tickets especificos.</span>
+            </div>
+            <button id="resetFiltersBtn" type="button" class="ghost icon-only" title="Limpiar filtros"><i data-lucide="x"></i></button>
+          </div>
+          <form id="ticketFilters" class="filters">
+            <label>Estado
+              <select name="status" aria-label="Estado">
+                <option value="">Todos</option>
+                <option value="open">Abiertos</option>
+                <option value="closed">Cerrados</option>
+              </select>
+            </label>
+            <label>Prioridad
+              <select name="priority">
+                <option value="">Todas</option>
+                <option value="low">Baja</option>
+                <option value="medium">Media</option>
+                <option value="high">Alta</option>
+                <option value="urgent">Urgente</option>
+              </select>
+            </label>
+            <label>Departamento<input name="department" placeholder="soporte"></label>
+            <label>Tipo<input name="type" placeholder="Soporte"></label>
+            <label>Usuario<input name="userId" placeholder="ID de usuario"></label>
+            <label>Numero<input name="number" placeholder="153"></label>
+            <label>Desde<input name="from" type="date" aria-label="Desde"></label>
+            <label>Hasta<input name="to" type="date" aria-label="Hasta"></label>
+            <label>Etiqueta<input name="tag" placeholder="bug, pago"></label>
+            <button type="submit"><i data-lucide="search"></i> Filtrar</button>
+          </form>
+        </section>
 
         <div class="records-grid">
           <div class="table-card">
@@ -127,6 +194,8 @@
                     <th>#</th>
                     <th>Estado</th>
                     <th>Tipo</th>
+                    <th>Prioridad</th>
+                    <th>Tags</th>
                     <th>Usuario</th>
                     <th>Atiende</th>
                     <th>Abierto</th>
@@ -251,8 +320,60 @@
         </header>
         <div id="panelsList" class="panel-list"></div>
       </section>
+
+      <section id="profileView" class="view hidden">
+        <header class="page-hero">
+          <div>
+            <span class="eyebrow">Perfiles</span>
+            <h2>Perfil de usuario</h2>
+            <p>Busca un ID de Discord para revisar actividad, tickets abiertos y historial cerrado.</p>
+          </div>
+        </header>
+
+        <section class="profile-search">
+          <div class="card-heading compact">
+            <div>
+              <h3><i data-lucide="user-search"></i> Buscar usuario</h3>
+              <span>Usa el ID de Discord registrado en los tickets.</span>
+            </div>
+          </div>
+          <form id="profileSearchForm" class="profile-form">
+            <input id="profileUserInput" name="userId" placeholder="ID de usuario de Discord" autocomplete="off">
+            <button type="submit"><i data-lucide="search"></i> Buscar</button>
+          </form>
+        </section>
+
+        <div id="profileResult" class="profile-result"></div>
+      </section>
     </section>
   </main>
+
+  <dialog id="responsesDialog" class="dialog-card">
+    <form method="dialog" class="dialog-shell">
+      <header>
+        <div>
+          <span class="eyebrow">Atencion</span>
+          <h3>Respuestas rapidas</h3>
+        </div>
+        <button class="ghost icon-only" value="close" title="Cerrar"><i data-lucide="x"></i></button>
+      </header>
+      <div class="quick-tools">
+        <input id="responseSearch" placeholder="Buscar respuesta">
+        <button id="newResponseBtn" type="button" class="secondary"><i data-lucide="plus"></i> Nueva</button>
+      </div>
+      <section id="newResponseForm" class="quick-form hidden">
+        <input id="responseTitle" placeholder="Titulo">
+        <textarea id="responseContent" placeholder="Contenido de la respuesta"></textarea>
+        <select id="responseCategory">
+          <option value="general">General</option>
+          <option value="soporte">Soporte</option>
+          <option value="cierre">Cierre</option>
+        </select>
+        <button id="saveResponseBtn" type="button"><i data-lucide="save"></i> Guardar</button>
+      </section>
+      <section id="responsesList" class="quick-list"></section>
+    </form>
+  </dialog>
 
   <script src="/app.js"></script>
 </body>

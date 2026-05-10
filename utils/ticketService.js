@@ -343,6 +343,15 @@ async function searchTickets(guildId, filters = {}) {
     if (filters.type) {
         where.type_label = { $regex: escapeRegex(filters.type), $options: "i" };
     }
+    if (filters.priority && ["low", "medium", "high", "urgent"].includes(filters.priority)) {
+        where.priority = filters.priority;
+    }
+    if (filters.department) {
+        where.department = { $regex: escapeRegex(filters.department), $options: "i" };
+    }
+    if (filters.tag || filters.tags) {
+        where.tags = { $regex: escapeRegex(filters.tag || filters.tags), $options: "i" };
+    }
     if (filters.userId) {
         where.user_id = filters.userId;
     }
