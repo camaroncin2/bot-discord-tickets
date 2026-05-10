@@ -5,44 +5,56 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tickets Command Center</title>
   <link rel="stylesheet" href="/styles.css">
+  <script src="https://unpkg.com/lucide@latest" defer></script>
 </head>
 <body>
   <main id="loginView" class="login-shell hidden">
     <form id="loginForm" class="login-card">
-      <span class="product-mark">Ticket Ops</span>
-      <h1>Centro de control</h1>
-      <p>Accede al panel local para revisar registros y configurar paneles de tickets.</p>
+      <div class="login-mark">
+        <span class="brand-icon"><i data-lucide="ticket"></i></span>
+        <span>Ticket Ops</span>
+      </div>
+      <div class="login-copy">
+        <span class="eyebrow">Panel local</span>
+        <h1>Centro de control</h1>
+        <p>Accede al dashboard para revisar registros y configurar paneles de tickets.</p>
+      </div>
       <label>Clave de acceso
         <input id="passwordInput" type="password" placeholder="Ingresa la clave local" autocomplete="current-password" required>
       </label>
-      <button type="submit">Entrar al dashboard</button>
+      <button type="submit"><i data-lucide="log-in"></i> Entrar al dashboard</button>
       <span id="loginError" class="error"></span>
     </form>
   </main>
 
   <main id="appView" class="app hidden">
     <header class="app-header">
-      <section class="brand-block">
-        <div class="brand-icon">T</div>
-        <div>
-          <span class="eyebrow">Command Center</span>
-          <h1>Tickets</h1>
-        </div>
-      </section>
+      <div class="header-inner">
+        <section class="brand-block">
+          <span class="brand-icon"><i data-lucide="ticket"></i></span>
+          <div>
+            <span class="eyebrow">Command Center</span>
+            <h1>Tickets</h1>
+          </div>
+        </section>
 
-      <nav class="nav-tabs" aria-label="Navegacion principal">
-        <button class="nav-btn active" data-view="dashboard">Registros</button>
-        <button class="nav-btn" data-view="editor">Editor visual</button>
-        <button class="nav-btn" data-view="panels">Paneles</button>
-      </nav>
+        <nav class="nav-tabs" aria-label="Navegacion principal">
+          <button class="nav-btn active" data-view="dashboard"><i data-lucide="layout-dashboard"></i> Registros</button>
+          <button class="nav-btn" data-view="editor"><i data-lucide="pen-tool"></i> Editor visual</button>
+          <button class="nav-btn" data-view="panels"><i data-lucide="layers"></i> Paneles</button>
+        </nav>
 
-      <section class="account-block">
-        <div class="server-pill">
-          <span>Servidor</span>
-          <strong id="guildName">Cargando</strong>
-        </div>
-        <button id="logoutBtn" class="ghost">Salir</button>
-      </section>
+        <section class="account-block">
+          <div class="server-pill">
+            <i data-lucide="server"></i>
+            <div>
+              <span>Servidor</span>
+              <strong id="guildName">Cargando</strong>
+            </div>
+          </div>
+          <button id="logoutBtn" class="ghost icon-text"><i data-lucide="log-out"></i> <span>Salir</span></button>
+        </section>
+      </div>
     </header>
 
     <section class="content">
@@ -61,41 +73,52 @@
 
         <div class="stats">
           <article>
-            <span>Tickets abiertos</span>
+            <div class="stat-top">
+              <span>Tickets abiertos</span>
+              <i data-lucide="folder-open" class="stat-icon amber"></i>
+            </div>
             <strong id="openCount">0</strong>
             <small>requieren seguimiento</small>
           </article>
           <article>
-            <span>Tickets cerrados</span>
+            <div class="stat-top">
+              <span>Tickets cerrados</span>
+              <i data-lucide="folder-check" class="stat-icon green"></i>
+            </div>
             <strong id="closedCount">0</strong>
             <small>historial disponible</small>
           </article>
           <article>
-            <span>Total registrado</span>
+            <div class="stat-top">
+              <span>Total registrado</span>
+              <i data-lucide="database" class="stat-icon indigo"></i>
+            </div>
             <strong id="totalCount">0</strong>
             <small>desde MySQL local</small>
           </article>
         </div>
 
         <form id="ticketFilters" class="filters">
-          <select name="status">
-            <option value="">Todos los estados</option>
+          <select name="status" aria-label="Estado">
+            <option value="">Todos</option>
             <option value="open">Abiertos</option>
             <option value="closed">Cerrados</option>
           </select>
           <input name="type" placeholder="Tipo de ticket">
           <input name="userId" placeholder="ID de usuario">
           <input name="number" placeholder="Numero">
-          <input name="from" type="date">
-          <input name="to" type="date">
-          <button type="submit">Aplicar filtros</button>
+          <input name="from" type="date" aria-label="Desde">
+          <input name="to" type="date" aria-label="Hasta">
+          <button type="submit"><i data-lucide="search"></i> Filtrar</button>
         </form>
 
         <div class="records-grid">
           <div class="table-card">
             <div class="card-heading">
-              <h3>Actividad reciente</h3>
-              <span>Click en una fila para ver detalle</span>
+              <div>
+                <h3><i data-lucide="activity"></i> Actividad reciente</h3>
+                <span>Click en una fila para ver detalle</span>
+              </div>
             </div>
             <div class="table-wrap">
               <table>
@@ -122,9 +145,9 @@
           <div>
             <span class="eyebrow">Constructor</span>
             <h2>Editor visual de paneles</h2>
-            <p>Diseña el mensaje, configura botones y publica el panel directamente en Discord.</p>
+            <p>Disena el mensaje, configura botones y publica el panel directamente en Discord.</p>
           </div>
-          <button id="newPanelBtn">Nuevo panel</button>
+          <button id="newPanelBtn"><i data-lucide="plus"></i> Nuevo panel</button>
         </header>
 
         <div class="editor-grid">
@@ -133,7 +156,7 @@
               <span class="step-number">01</span>
               <div>
                 <h3>Contenido del panel</h3>
-                <p>Define el mensaje que verán los usuarios antes de abrir un ticket.</p>
+                <p>Define el mensaje que veran los usuarios antes de abrir un ticket.</p>
               </div>
             </div>
             <input type="hidden" name="panelId">
@@ -152,8 +175,8 @@
               <label>Crear categoria si no existe<input name="defaultCategoryName" placeholder="tickets"></label>
             </div>
             <div class="form-actions">
-              <button type="submit">Guardar panel</button>
-              <button type="button" id="publishPanelBtn" class="secondary">Publicar en Discord</button>
+              <button type="submit"><i data-lucide="save"></i> Guardar panel</button>
+              <button type="button" id="publishPanelBtn" class="secondary"><i data-lucide="send"></i> Publicar en Discord</button>
             </div>
           </form>
 
@@ -185,9 +208,12 @@
           <div class="section-title">
             <div>
               <span class="step-number">02</span>
-              <h3>Botones del panel</h3>
+              <div>
+                <h3>Botones del panel</h3>
+                <p>Configura el flujo, color y permisos de cada tipo de ticket.</p>
+              </div>
             </div>
-            <button id="addButtonBtn" type="button">Agregar boton</button>
+            <button id="addButtonBtn" type="button"><i data-lucide="plus"></i> Agregar boton</button>
           </div>
           <div id="buttonsList" class="button-list"></div>
           <form id="buttonForm" class="button-form hidden">
@@ -208,8 +234,8 @@
             <label>Roles staff<select name="staffRoleIds" multiple></select></label>
             <label>Roles cierre<select name="closeRoleIds" multiple></select></label>
             <div class="form-actions">
-              <button type="submit">Guardar boton</button>
-              <button type="button" id="cancelButtonEdit" class="secondary">Cancelar</button>
+              <button type="submit"><i data-lucide="save"></i> Guardar boton</button>
+              <button type="button" id="cancelButtonEdit" class="secondary"><i data-lucide="x"></i> Cancelar</button>
             </div>
           </form>
         </section>

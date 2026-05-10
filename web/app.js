@@ -14,6 +14,29 @@ const esc = value => String(value ?? "")
   .replaceAll('"', "&quot;")
   .replaceAll("'", "&#039;");
 
+const icon = name => `<i data-lucide="${name}"></i>`;
+
+function refreshIcons() {
+  if (window.lucide?.createIcons) {
+    window.lucide.createIcons();
+  }
+}
+
+function ticketStatusLabel(status) {
+  return status === "closed" ? "Cerrado" : "Abierto";
+}
+
+function ticketStatusClass(status) {
+  return status === "closed" ? "status-closed" : "status-open";
+}
+
+function panelStatusClass(status = "") {
+  const normalized = String(status).toLowerCase();
+  if (normalized.includes("publicado")) return "status-published";
+  if (normalized.includes("no encontrado")) return "status-error";
+  return "status-draft";
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -28,6 +51,7 @@ function show(view) {
   $$(".view").forEach(item => item.classList.add("hidden"));
   $(`#${view}View`).classList.remove("hidden");
   $$(".nav-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.view === view));
+  refreshIcons();
 }
 
 function optionList(items, selectedId = "") {
@@ -70,28 +94,39 @@ async function loadStats() {
 
 async function loadTickets(params = new URLSearchParams()) {
   const rows = await api(`/api/tickets?${params.toString()}`);
-  $("#ticketsTable").innerHTML = rows.map(ticket => `
+  $("#ticketsTable").innerHTML = rows.length ? rows.map(ticket => `
     <tr data-ticket-id="${ticket.id}">
       <td>${esc(ticket.ticket_number)}</td>
-      <td>${esc(ticket.status)}</td>
+      <td><span class="status-badge ${ticketStatusClass(ticket.status)}">${ticketStatusLabel(ticket.status)}</span></td>
       <td>${esc(ticket.type_label)}</td>
       <td>${esc(ticket.user_id)}</td>
       <td>${esc(ticket.claimed_by || "-")}</td>
       <td>${new Date(ticket.opened_at).toLocaleString()}</td>
     </tr>
-  `).join("");
+  `).join("") : `<tr><td colspan="6" class="empty-row">No hay tickets registrados</td></tr>`;
+  refreshIcons();
 }
 
 async function showTicketDetail(ticketId) {
   const data = await api(`/api/tickets/${ticketId}`);
   $("#ticketDetail").classList.remove("hidden");
   $("#ticketDetail").innerHTML = `
-    <h3>Ticket #${data.ticket.ticket_number}</h3>
-    <p><strong>Motivo:</strong> ${esc(data.ticket.reason)}</p>
+    <header>
+      <div>
+        <span class="eyebrow">Detalle</span>
+        <h3>Ticket #${esc(data.ticket.ticket_number)}</h3>
+      </div>
+      <span class="status-badge ${ticketStatusClass(data.ticket.status)}">${ticketStatusLabel(data.ticket.status)}</span>
+    </header>
+    <p><strong>Tipo:</strong> ${esc(data.ticket.type_label || "-")}</p>
+    <p><strong>Usuario:</strong> ${esc(data.ticket.user_id || "-")}</p>
+    <p><strong>Atiende:</strong> ${esc(data.ticket.claimed_by || "-")}</p>
+    <p><strong>Motivo:</strong> ${esc(data.ticket.reason || "-")}</p>
     <p><strong>Cierre:</strong> ${esc(data.ticket.close_reason || "-")}</p>
     <p><strong>Eventos:</strong></p>
-    <ul>${data.events.map(event => `<li>${esc(event.event_type)} por ${esc(event.actor_id || "-")} - ${new Date(event.created_at).toLocaleString()}</li>`).join("")}</ul>
+    <ul class="event-list">${data.events.length ? data.events.map(event => `<li>${esc(event.event_type)} por ${esc(event.actor_id || "-")}<br><small>${new Date(event.created_at).toLocaleString()}</small></li>`).join("") : "<li>Sin eventos registrados</li>"}</ul>
   `;
+  refreshIcons();
 }
 
 async function loadPanels() {
@@ -101,24 +136,39 @@ async function loadPanels() {
 }
 
 function renderPanelsList() {
-  $("#panelsList").innerHTML = state.panels.map(panel => `
+  $("#panelsList").innerHTML = state.panels.length ? state.panels.map(panel => `
     <article class="list-card">
-      <h3>${esc(panel.title)}</h3>
-      <p class="muted">ID ${esc(panel.id)} | #${esc(panel.channelName || panel.channel_id)} | ${esc(panel.status)}</p>
+      <div class="list-card-header">
+        <div>
+          <h3>${esc(panel.title)}</h3>
+          <div class="list-card-meta">
+            <span class="status-badge ${panelStatusClass(panel.status)}">${esc(panel.status || "sin publicar")}</span>
+            <span class="muted">ID ${esc(panel.id)}</span>
+            <span class="muted">#${esc(panel.channelName || panel.channel_id || "-")}</span>
+          </div>
+        </div>
+        <span class="button-chip">${esc(panel.buttons.length)} botones</span>
+      </div>
       <p>${esc(panel.description)}</p>
-      <p class="muted">${esc(panel.buttons.length)} botones</p>
       <div class="actions">
-        <button data-edit-panel="${esc(panel.id)}">Editar</button>
-        <button data-publish-panel="${esc(panel.id)}" class="secondary">Publicar</button>
-        <button data-delete-panel="${esc(panel.id)}" class="danger">Borrar</button>
+        <button data-edit-panel="${esc(panel.id)}" class="secondary">${icon("pencil")} Editar</button>
+        <button data-publish-panel="${esc(panel.id)}">${icon("send")} Publicar</button>
+        <button data-delete-panel="${esc(panel.id)}" class="danger">${icon("trash-2")}</button>
       </div>
     </article>
-  `).join("");
+  `).join("") : `<article class="list-card empty-row">No hay paneles configurados</article>`;
+  refreshIcons();
 }
 
 function renderPanelCards() {
-  if (!state.activePanel && state.panels[0]) {
-    selectPanel(state.panels[0].id);
+  if (state.activePanel) {
+    const refreshed = state.panels.find(item => String(item.id) === String(state.activePanel.id));
+    if (refreshed) {
+      state.activePanel = refreshed;
+      state.activeButtons = refreshed.buttons || [];
+      renderButtons();
+      updatePreview();
+    }
   }
 }
 
@@ -152,16 +202,24 @@ function newPanel() {
 }
 
 function renderButtons() {
-  $("#buttonsList").innerHTML = state.activeButtons.map(button => `
+  $("#buttonsList").innerHTML = state.activeButtons.length ? state.activeButtons.map(button => `
     <article class="list-card">
-      <strong>${esc(button.label)}</strong>
-      <span class="muted">${esc(button.style)} | ${esc(button.categoryName || button.category_id)}</span>
+      <div class="list-card-header">
+        <div>
+          <h3>${esc(button.label)}</h3>
+          <div class="list-card-meta">
+            <span class="fake-btn ${esc(button.style)}">${esc(button.style)}</span>
+            <span class="muted">${esc(button.categoryName || button.category_id || "sin categoria")}</span>
+          </div>
+        </div>
+      </div>
       <div class="actions">
-        <button data-edit-button="${esc(button.id)}">Editar</button>
-        <button data-delete-button="${esc(button.id)}" class="danger">Borrar</button>
+        <button data-edit-button="${esc(button.id)}" class="secondary">${icon("pencil")} Editar</button>
+        <button data-delete-button="${esc(button.id)}" class="danger">${icon("trash-2")} Borrar</button>
       </div>
     </article>
-  `).join("");
+  `).join("") : `<article class="list-card empty-row">Guarda un panel y agrega el primer boton.</article>`;
+  refreshIcons();
 }
 
 function updatePreview() {
@@ -171,6 +229,7 @@ function updatePreview() {
   $("#previewButtons").innerHTML = state.activeButtons.map(button =>
     `<span class="fake-btn ${esc(button.style)}">${esc(button.label)}</span>`
   ).join("");
+  refreshIcons();
 }
 
 function editButton(buttonId = null) {
@@ -196,6 +255,7 @@ function editButton(buttonId = null) {
 async function savePanel(event) {
   event.preventDefault();
   const form = event.target;
+  let targetPanelId = form.panelId.value;
   const body = {
     title: form.title.value,
     description: form.description.value,
@@ -210,9 +270,11 @@ async function savePanel(event) {
   } else {
     const created = await api("/api/panels", { method: "POST", body: JSON.stringify(body) });
     form.panelId.value = created.id;
+    targetPanelId = created.id;
   }
   await loadGuild();
   await loadPanels();
+  if (targetPanelId) selectPanel(targetPanelId);
 }
 
 async function saveButton(event) {
@@ -250,6 +312,7 @@ async function publishActivePanel() {
   }
   await api(`/api/panels/${panelId}/publish`, { method: "POST", body: "{}" });
   await loadPanels();
+  selectPanel(panelId);
   alert("Panel publicado o actualizado.");
 }
 
@@ -261,6 +324,7 @@ async function boot() {
 
   await loadGuild();
   await Promise.all([loadStats(), loadTickets(), loadPanels()]);
+  refreshIcons();
 }
 
 $("#loginForm").addEventListener("submit", async event => {
@@ -324,4 +388,7 @@ document.body.addEventListener("click", async event => {
 boot().catch(error => {
   console.error(error);
   $("#loginView").classList.remove("hidden");
+  refreshIcons();
 });
+
+window.addEventListener("load", refreshIcons);
