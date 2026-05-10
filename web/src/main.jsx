@@ -154,7 +154,7 @@ function Login({ onAuthed }) {
     <main className="login-shell">
       <form className="login-card" onSubmit={submit}>
         <div className="brand-line">
-          <span className="brand-icon"><Ticket size={19} /></span>
+          <span className="brand-icon indigo"><Ticket size={19} /></span>
           <span>Ticket Ops</span>
         </div>
         <div>
@@ -173,7 +173,7 @@ function Login({ onAuthed }) {
             required
           />
         </label>
-        <button type="submit"><LogIn size={16} /> Entrar al dashboard</button>
+        <button type="submit" className="primary-action"><LogIn size={16} /> Entrar al dashboard</button>
         {error ? <span className="error">{error}</span> : null}
       </form>
     </main>
@@ -190,7 +190,7 @@ function Layout({ guild, view, setView, theme, setTheme, tickets, onLogout, chil
       <header className="app-header">
         <div className="header-inner">
           <section className="brand-block">
-            <span className="brand-icon"><Ticket size={19} /></span>
+            <span className="brand-icon indigo"><Ticket size={19} /></span>
             <div>
               <span className="eyebrow">Command Center</span>
               <h1>Tickets</h1>
@@ -460,7 +460,7 @@ function Dashboard({ stats, tickets, onTickets, onSelectTicket, selectedTicket, 
           <Field label="Desde"><input type="date" value={filters.from || ""} onChange={event => setFilters({ ...filters, from: event.target.value })} /></Field>
           <Field label="Hasta"><input type="date" value={filters.to || ""} onChange={event => setFilters({ ...filters, to: event.target.value })} /></Field>
           <Field label="Etiqueta"><input value={filters.tag || ""} onChange={event => setFilters({ ...filters, tag: event.target.value })} placeholder="bug, pago" /></Field>
-          <button type="submit"><Search size={16} /> Filtrar</button>
+          <button type="submit" className="primary-action"><Search size={16} /> Filtrar</button>
         </form>
       </section>
 
@@ -693,7 +693,7 @@ function Editor({ guild, panels, activePanel, setActivePanel, activeButtons, set
   return (
     <section className="view-stack">
       <PageHero eyebrow="Constructor" title="Editor visual de paneles" copy="Disena el mensaje, configura botones y publica el panel directamente en Discord.">
-        <button onClick={newPanel}><Plus size={16} /> Nuevo panel</button>
+        <button className="primary-action" onClick={newPanel}><Plus size={16} /> Nuevo panel</button>
       </PageHero>
       <section className="editor-grid">
         <form className="card panel-form" onSubmit={savePanel}>
@@ -709,16 +709,16 @@ function Editor({ guild, panels, activePanel, setActivePanel, activeButtons, set
             <Field label="Crear categoria si no existe"><input placeholder="tickets" value={panelDraft.defaultCategoryName} onChange={event => setPanelDraft({ ...panelDraft, defaultCategoryName: event.target.value })} /></Field>
           </div>
           <div className="form-actions">
-            <button type="submit"><Save size={16} /> Guardar panel</button>
-            <button type="button" className="secondary" onClick={publish}><Send size={16} /> Publicar en Discord</button>
+            <button type="submit" className="primary-action"><Save size={16} /> Guardar panel</button>
+            <button type="button" className="secondary publish-action" onClick={publish}><Send size={16} /> Publicar en Discord</button>
           </div>
         </form>
-        <Preview panel={panelDraft} buttons={activeButtons} />
+        <Preview guild={guild} panel={panelDraft} buttons={activeButtons} />
       </section>
       <section className="card buttons-editor">
         <div className="section-title">
           <FormHeader step="02" title="Botones del panel" copy="Configura el flujo, color y permisos de cada tipo de ticket." />
-          <button onClick={() => { setButtonDraft(emptyButton()); setButtonOpen(true); }}><Plus size={16} /> Agregar boton</button>
+          <button className="primary-action" onClick={() => { setButtonDraft(emptyButton()); setButtonOpen(true); }}><Plus size={16} /> Agregar boton</button>
         </div>
         <div className="button-list">
           {activeButtons.length ? activeButtons.map(button => (
@@ -781,18 +781,60 @@ function MultiSelect({ items = [], value = [], onChange }) {
   );
 }
 
-function Preview({ panel, buttons }) {
+function Preview({ guild, panel, buttons }) {
+  const channelName = panel.channelId
+    ? guild.channels.find(channel => channel.id === panel.channelId)?.name || "canal-de-tickets"
+    : panel.channelName || "canal-de-tickets";
+  const accentStyle = {
+    azul: "#5865f2",
+    gris: "#99aab5",
+    verde: "#57f287",
+    rojo: "#ed4245"
+  }[buttons[0]?.style] || "#5865f2";
+
   return (
     <section className="card preview">
-      <FormHeader step="Vista" title="Previsualizacion" copy="Aproximacion visual del embed y sus botones." />
-      <div className="discord-preview">
-        <div className="message-row">
-          <div className="bot-avatar">B</div>
-          <div className="message-body">
-            <div className="message-meta">bot request <span>APP</span></div>
-            <div className="embed"><h4>{panel.title || "Titulo del panel"}</h4><p>{panel.description || "Descripcion del panel"}</p></div>
-            <div className="button-preview">{buttons.map(button => <span className={`fake-btn ${button.style}`} key={button.id}>{button.label}</span>)}</div>
+      <FormHeader step="Vista" title="Previsualizacion Discord" copy="Asi se vera el mensaje en tu servidor." />
+      <div className="discord-frame">
+        <div className="discord-channel">
+          <span>#</span>
+          <strong>{channelName}</strong>
+        </div>
+        <div className="discord-message-area">
+          <div className="discord-message">
+            <div className="bot-avatar">
+              <CheckCircle2 size={22} />
+            </div>
+            <div className="message-body">
+              <div className="message-meta">
+                <strong>Ticket Bot</strong>
+                <span>APP</span>
+                <small>Hoy a las {new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</small>
+              </div>
+              <div className="discord-embed">
+                <div className="embed-accent" style={{ backgroundColor: accentStyle }} />
+                <div className="embed-content">
+                  <div className="embed-author">
+                    <span className="mini-avatar"><CheckCircle2 size={12} /></span>
+                    <strong>Ticket Bot</strong>
+                  </div>
+                  <h4>{panel.title || "Titulo del panel"}</h4>
+                  <p>{panel.description || "Descripcion del panel - escribe algo para ver la previsualizacion en tiempo real."}</p>
+                  <footer>Sistema de tickets - Hoy a las {new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</footer>
+                </div>
+              </div>
+              <div className="button-preview">
+                {(buttons.length ? buttons : [{ id: "demo", label: "Crear ticket", style: "azul" }]).map(button => (
+                  <button type="button" className={`discord-button ${button.style}`} key={button.id}>{button.label}</button>
+                ))}
+              </div>
+            </div>
           </div>
+        </div>
+        <div className="discord-input">
+          <Plus size={18} />
+          <span>Mensaje #{channelName}</span>
+          <span>...</span>
         </div>
       </div>
     </section>
@@ -808,7 +850,7 @@ function ButtonForm({ guild, draft, setDraft, onSubmit, onCancel }) {
       <Field label="Crear categoria si no existe"><input value={draft.categoryName} onChange={event => setDraft({ ...draft, categoryName: event.target.value })} placeholder="tickets" /></Field>
       <Field label="Roles staff"><MultiSelect items={guild.roles} value={draft.staffRoleIds} onChange={value => setDraft({ ...draft, staffRoleIds: value })} /></Field>
       <Field label="Roles cierre"><MultiSelect items={guild.roles} value={draft.closeRoleIds} onChange={value => setDraft({ ...draft, closeRoleIds: value })} /></Field>
-      <div className="form-actions"><button type="submit"><Save size={16} /> Guardar boton</button><button type="button" className="secondary" onClick={onCancel}><X size={16} /> Cancelar</button></div>
+      <div className="form-actions"><button type="submit" className="primary-action"><Save size={16} /> Guardar boton</button><button type="button" className="secondary" onClick={onCancel}><X size={16} /> Cancelar</button></div>
     </form>
   );
 }
@@ -846,7 +888,7 @@ function Panels({ panels, onEdit, reloadPanels, setActivePanel }) {
             <p>{panel.description}</p>
             <div className="actions">
               <button className="secondary" onClick={() => onEdit(panel)}><PenTool size={15} /> Editar</button>
-              <button onClick={() => publish(panel.id)}><Send size={15} /> Publicar</button>
+              <button className="secondary publish-action" onClick={() => publish(panel.id)}><Send size={15} /> Publicar</button>
               <button className="danger" onClick={() => remove(panel.id)}><Trash2 size={15} /></button>
             </div>
           </article>

@@ -78,6 +78,40 @@ button.secondary:hover, button.ghost:hover { background: var(--accent-soft); }
 button.ghost { color: var(--muted); background: transparent; border-color: transparent; box-shadow: none; }
 button.danger { color: var(--danger); background: var(--surface); border-color: #fecaca; }
 button.danger:hover { background: var(--danger-soft); }
+button.primary-action {
+  color: #fff;
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+button.primary-action:hover {
+  background: #4338ca;
+  border-color: #4338ca;
+}
+html.dark button.primary-action {
+  background: #6366f1;
+  border-color: #6366f1;
+}
+html.dark button.primary-action:hover {
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+button.publish-action {
+  color: #4338ca;
+  border-color: #c7d2fe;
+  background: var(--surface);
+}
+button.publish-action:hover {
+  background: #eef2ff;
+  border-color: #a5b4fc;
+}
+html.dark button.publish-action {
+  color: #a5b4fc;
+  border-color: rgba(99, 102, 241, .45);
+  background: var(--surface);
+}
+html.dark button.publish-action:hover {
+  background: rgba(79, 70, 229, .18);
+}
 
 input, textarea, select {
   width: 100%;
@@ -155,6 +189,11 @@ select[multiple] option { padding: 6px; border-radius: 6px; }
   color: var(--surface);
   background: var(--accent);
 }
+.brand-icon.indigo {
+  color: #fff;
+  background: #4f46e5;
+}
+html.dark .brand-icon.indigo { background: #6366f1; }
 
 .app-shell { min-height: 100vh; }
 .app-header {
@@ -563,14 +602,44 @@ html.dark .priority-high { background: rgba(249, 115, 22, .16); border-color: rg
 }
 .form-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
-.discord-preview {
-  min-height: 330px;
-  padding: 18px;
+.discord-frame {
+  overflow: hidden;
+  min-height: 420px;
   border-radius: var(--radius);
   background: #313338;
   border: 1px solid #2b2d31;
+  font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
-.message-row { display: flex; align-items: flex-start; gap: 12px; }
+.discord-channel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #3f4147;
+}
+.discord-channel span {
+  color: #80848e;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1;
+}
+.discord-channel strong {
+  overflow: hidden;
+  color: #f2f3f5;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.discord-message-area { padding: 12px 16px; }
+.discord-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 4px 8px;
+  margin: 0 -8px;
+  border-radius: 6px;
+}
+.discord-message:hover { background: #2e3035; }
 .bot-avatar {
   width: 38px;
   height: 38px;
@@ -580,18 +649,145 @@ html.dark .priority-high { background: rgba(249, 115, 22, .16); border-color: rg
   color: #fff;
   background: #5865f2;
   font-weight: 900;
+  flex: 0 0 auto;
 }
 .message-body { min-width: 0; width: 100%; }
-.message-meta { margin-bottom: 8px; color: #f2f3f5; font-weight: 700; }
-.message-meta span { margin-left: 6px; padding: 2px 5px; border-radius: 4px; color: #dce5ff; background: #5865f2; font-size: 10px; }
-.embed { max-width: 640px; padding: 14px; margin-bottom: 12px; border-left: 4px solid #5865f2; border-radius: 6px; background: #2b2d31; }
-.embed h4 { margin: 0 0 8px; color: #f2f3f5; font-size: 16px; }
-.embed p { margin: 0; color: #d9dee3; white-space: pre-wrap; line-height: 1.48; }
-.button-preview { display: flex; flex-wrap: wrap; gap: 8px; }
+.message-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+.message-meta strong {
+  color: #f2f3f5;
+  font-size: 15px;
+  font-weight: 650;
+}
+.message-meta span {
+  display: inline-flex;
+  align-items: center;
+  height: 15px;
+  padding: 0 5px;
+  border-radius: 3px;
+  color: #fff;
+  background: #5865f2;
+  font-size: 10px;
+  font-weight: 750;
+}
+.message-meta small {
+  color: #949ba4;
+  font-size: 12px;
+}
+.discord-embed {
+  display: flex;
+  max-width: 432px;
+  overflow: hidden;
+  margin-top: 2px;
+  border-radius: 4px;
+  background: #2b2d31;
+}
+.embed-accent {
+  width: 4px;
+  flex: 0 0 auto;
+}
+.embed-content {
+  min-width: 0;
+  flex: 1;
+  padding: 12px;
+}
+.embed-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.embed-author strong {
+  color: #f2f3f5;
+  font-size: 12px;
+  font-weight: 700;
+}
+.mini-avatar {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #5865f2;
+}
+.discord-embed h4 {
+  margin: 0 0 5px;
+  color: #00a8fc;
+  font-size: 15px;
+  line-height: 1.35;
+}
+.discord-embed p {
+  margin: 0;
+  color: #dbdee1;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.375rem;
+}
+.discord-embed footer {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid #3f4147;
+  color: #949ba4;
+  font-size: 11px;
+}
+.button-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 432px;
+  margin-top: 7px;
+}
 .fake-btn { border-radius: 5px; padding: 8px 13px; color: white; background: #5865f2; font-size: 14px; font-weight: 720; }
 .fake-btn.gris { background: #64748b; }
 .fake-btn.verde { background: var(--ok); }
 .fake-btn.rojo { background: var(--danger); }
+.discord-button {
+  min-width: 60px;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 3px;
+  color: #fff;
+  box-shadow: none;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 16px;
+  cursor: default;
+}
+.discord-button:hover { box-shadow: none; }
+.discord-button.azul { background: #5865f2; }
+.discord-button.azul:hover { background: #4752c4; }
+.discord-button.gris { background: #4e5058; }
+.discord-button.gris:hover { background: #6d6f78; }
+.discord-button.verde { background: #248046; }
+.discord-button.verde:hover { background: #1a6334; }
+.discord-button.rojo { background: #da373c; }
+.discord-button.rojo:hover { background: #a12828; }
+.discord-input {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 16px 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  color: #b5bac1;
+  background: #383a40;
+}
+.discord-input span:nth-child(2) {
+  flex: 1;
+  overflow: hidden;
+  color: #6d6f78;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
 .section-title {
   display: flex;
   align-items: center;
