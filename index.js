@@ -49,20 +49,24 @@ function loadLocalConfig() {
 const config = loadLocalConfig();
 const TOKEN = String(process.env.DISCORD_TOKEN || config.token || "").trim();
 const CLIENT_ID = String(process.env.CLIENT_ID || config.clientId || "").trim();
+const ENABLE_MESSAGE_CONTENT_INTENT = String(process.env.ENABLE_MESSAGE_CONTENT_INTENT || "false").toLowerCase() === "true";
 
 if (!TOKEN || !CLIENT_ID) {
     console.error("Falta configurar DISCORD_TOKEN y CLIENT_ID en .env, o token/clientId en config.json.");
     process.exit(1);
 }
 
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
-});
+const intents = [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages
+];
+
+if (ENABLE_MESSAGE_CONTENT_INTENT) {
+    intents.push(GatewayIntentBits.MessageContent);
+}
+
+const client = new Client({ intents });
 
 client.commands = new Collection();
 const processedMessages = new Set();
