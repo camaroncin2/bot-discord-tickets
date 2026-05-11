@@ -497,6 +497,28 @@ async function searchTicketsByUserText(guildId, query) {
         .toArray());
 }
 
+async function listTicketUsers(guildId, limit = 100) {
+    await ensureDb();
+    const rows = await collection("tickets").aggregate([
+        { $match: { guild_id: guildId, user_id: { $exists: true, $ne: null } } },
+        {
+            $group: {
+                _id: "$user_id",
+                user_id: { $first: "$user_id" },
+                user: { $first: "$user" },
+                ticket_count: { $sum: 1 },
+                open_count: { $sum: { $cond: [{ $eq: ["$status", "open"] }, 1, 0] } },
+                closed_count: { $sum: { $cond: [{ $eq: ["$status", "closed"] }, 1, 0] } },
+                latest_ticket_at: { $max: "$opened_at" }
+            }
+        },
+        { $sort: { latest_ticket_at: -1 } },
+        { $limit: Number(limit) || 100 }
+    ]).toArray();
+
+    return cleanDocs(rows);
+}
+
 async function ticketStats(guildId) {
     await ensureDb();
     const tickets = collection("tickets");
@@ -847,6 +869,7 @@ module.exports = {
     getTicketMessages,
     getTicketByChannel,
     getTicketById,
+    listTicketUsers,
     listTickets,
     parseJsonArray,
     publishPanel,

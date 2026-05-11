@@ -15,6 +15,7 @@ const {
     getTicketById,
     getTicketEvents,
     getTicketMessages,
+    listTicketUsers,
     parseJsonArray,
     publishPanelForGuild,
     searchTickets,
@@ -94,6 +95,14 @@ async function enrichTicket(ticket, guild) {
 
 async function enrichTickets(tickets, guild) {
     return Promise.all(tickets.map(ticket => enrichTicket(ticket, guild)));
+}
+
+async function enrichTicketUser(row, guild) {
+    const member = await resolveMember(guild, row.user_id);
+    return {
+        ...row,
+        user: row.user || (member ? userDisplay(member.user, member) : null)
+    };
 }
 
 async function searchMembers(guild, query) {
@@ -286,6 +295,13 @@ function startWebServer(client) {
             users,
             tickets: await enrichTickets([...ticketsById.values()], guild)
         });
+    });
+
+    app.get("/api/profile-users", requireAuth, async (req, res) => {
+        const guild = firstGuild(client);
+        if (!guild) return res.status(503).json({ error: "Servidor no disponible." });
+        const rows = await listTicketUsers(guild.id, 100);
+        res.json(await Promise.all(rows.map(row => enrichTicketUser(row, guild))));
     });
 
     app.get("/api/panels", requireAuth, async (req, res) => {

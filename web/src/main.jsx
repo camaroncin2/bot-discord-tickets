@@ -982,6 +982,21 @@ function Profile() {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [ticketUsers, setTicketUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+
+  useEffect(() => {
+    loadTicketUsers();
+  }, []);
+
+  async function loadTicketUsers() {
+    setUsersLoading(true);
+    try {
+      setTicketUsers(await api("/api/profile-users"));
+    } finally {
+      setUsersLoading(false);
+    }
+  }
 
   async function search(event) {
     event.preventDefault();
@@ -994,9 +1009,42 @@ function Profile() {
     }
   }
 
+  async function selectUser(row) {
+    const userQuery = row.user_id;
+    setQuery(displayUser(row.user, userQuery));
+    setLoading(true);
+    try {
+      setResult(await api(`/api/profile-search?${new URLSearchParams({ query: userQuery }).toString()}`));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <section className="view-stack">
-      <PageHero eyebrow="Perfiles" title="Perfil de usuario" copy="Busca por nombre, apodo o ID de Discord para revisar actividad, tickets abiertos y historial cerrado." />
+      <PageHero eyebrow="Perfiles" title="Perfiles con tickets" copy="Lista de usuarios que han creado tickets. Selecciona uno o busca por nombre, apodo o ID." />
+      <section className="card profile-users">
+        <CardTitle icon={UserSearch} title="Usuarios con tickets" sub="Solo aparecen usuarios con historial registrado en tickets." />
+        <div className="profile-user-list">
+          {usersLoading ? <Empty>Cargando usuarios...</Empty> : ticketUsers.length ? ticketUsers.map(row => (
+            <button className="profile-user-row" key={row.user_id} onClick={() => selectUser(row)}>
+              <span className="profile-user-main">
+                <span className="profile-avatar small"><User size={17} /></span>
+                <span>
+                  <strong>{displayUser(row.user, row.user_id)}</strong>
+                  <small>{userSubline(row.user, row.user_id)}</small>
+                </span>
+              </span>
+              <span className="profile-user-stats">
+                <Badge tone="neutral">{row.ticket_count} tickets</Badge>
+                <Badge tone="amber">{row.open_count} abiertos</Badge>
+                <Badge tone="green">{row.closed_count} cerrados</Badge>
+                <small>{timeAgo(row.latest_ticket_at)}</small>
+              </span>
+            </button>
+          )) : <Empty>No hay usuarios con tickets registrados</Empty>}
+        </div>
+      </section>
       <section className="card profile-search">
         <CardTitle icon={UserSearch} title="Buscar usuario" sub="Acepta apodo del servidor, usuario global, username o ID." />
         <form className="profile-form" onSubmit={search}>
